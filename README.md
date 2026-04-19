@@ -1,7 +1,7 @@
 # test
 
 SpliteStudio Ultimate
-https://sikaikzari.github.io/test/spritestudio2.html
+https://sikaikzari.github.io/test/spritestudio3.html
 
 植物のやつの説明
 
