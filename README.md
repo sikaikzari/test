@@ -1,4 +1,8 @@
 # test
+
+SpliteStudio Ultimate
+https://github.com/sikaikzari/test/blob/24ecd1cb0c4467b7bd7dcb42c47fb893cf3b1049/spritestudio.html
+
 植物のやつの説明
 
 Tileset ready for AUTOTILING. PNG file. Each tile is 512 x 512 pixels.
