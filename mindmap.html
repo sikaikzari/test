@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -18,7 +17,6 @@
             margin: 0;
             user-select: none;
             -webkit-user-select: none;
-            /* 下段にパネルを置くので下側にセーフエリアを確保するゆ！ */
             padding-bottom: env(safe-area-inset-bottom);
         }
         #canvas-container {
@@ -31,8 +29,7 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 10;
-            pointer-events: auto;
+            z-index: 30;
             background: transparent;
         }
         .image-node {
@@ -63,10 +60,9 @@
             -webkit-user-drag: none;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
-        /* 操作パネルを下段に配置したゆ！ */
         .controls {
             position: fixed;
-            bottom: 1.5rem; /* 下からの位置だゆ */
+            bottom: 1.5rem;
             left: 50%;
             transform: translateX(-50%);
             z-index: 50;
@@ -78,7 +74,7 @@
             backdrop-filter: blur(8px);
             padding: 0.75rem;
             border-radius: 1.25rem;
-            box-shadow: 0 -4px 15px -3px rgb(0 0 0 / 0.1); /* 影の向きを調整したゆ */
+            box-shadow: 0 -4px 15px -3px rgb(0 0 0 / 0.1);
             width: 95%;
             max-width: 850px;
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -120,7 +116,6 @@
         <canvas id="paintCanvas"></canvas>
     </div>
 
-    <!-- UIを下段に移動だゆ！ -->
     <div class="controls">
         <div class="undo-redo-group">
             <button id="undoBtn" class="btn btn-white" title="戻る (←)">
@@ -178,7 +173,6 @@
         let lastY = 0;
         const strokeColor = '#2dd4bf'; 
 
-        // 履歴管理（Undo/Redo）
         let historyStack = [];
         let historyIndex = -1;
 
@@ -239,6 +233,7 @@
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             setCtxStyle();
+            updateCanvasInteraction();
         }
 
         function resizeCanvas() {
@@ -257,11 +252,6 @@
         initCanvas();
 
         const startDrawingHandler = (e) => {
-            // ペイント・消しゴムモード時はキャンバスを前面にする
-            if (mode !== 'move') {
-                canvas.style.zIndex = "30";
-            }
-            
             if (mode === 'move') return;
             isDrawing = true;
             const clientX = e.clientX || (e.touches && e.touches[0].clientX);
@@ -307,7 +297,13 @@
 
         canvas.addEventListener('touchend', stopDrawingHandler);
 
-        // キーボード操作対応
+        container.addEventListener('touchstart', (e) => {
+            if (e.target === container) {
+                canvas.style.zIndex = "30";
+                document.querySelectorAll('.image-node').forEach(n => n.classList.remove('active'));
+            }
+        });
+
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') undo();
             else if (e.key === 'ArrowRight') redo();
@@ -319,6 +315,14 @@
         drawModeBtn.addEventListener('click', () => setMode('draw'));
         eraserModeBtn.addEventListener('click', () => setMode('eraser'));
         moveModeBtn.addEventListener('click', () => setMode('move'));
+
+        function updateCanvasInteraction() {
+            if (mode === 'move') {
+                canvas.style.pointerEvents = "none";
+            } else {
+                canvas.style.pointerEvents = "auto";
+            }
+        }
 
         function setMode(newMode) {
             mode = newMode;
@@ -333,13 +337,17 @@
                 canvas.style.zIndex = "30";
             } else if (mode === 'move') {
                 moveModeBtn.classList.replace('inactive-mode', 'active-mode');
-                canvas.style.zIndex = "10"; // 移動モード時は背面にして画像に触りやすくする
             }
+            updateCanvasInteraction();
             setCtxStyle();
         }
 
         imageInput.addEventListener('change', (e) => {
             const files = e.target.files;
+            if (files.length > 0) {
+                // 画像が追加されたら自動で移動モードに切り替えるゆ！🥺
+                setMode('move');
+            }
             for (let file of files) {
                 const reader = new FileReader();
                 reader.onload = (event) => createImageNode(event.target.result);
@@ -362,7 +370,6 @@
             
             div.addEventListener('dblclick', () => div.remove());
 
-            // --- 安定版の移動ロジック ---
             let isDraggingNode = false;
             let moveOffset = { x: 0, y: 0 };
             let nodeInitialDistance = 0;
@@ -373,6 +380,10 @@
             const SNAP_THRESHOLD = 10; 
 
             const onStart = (e) => {
+                if (mode === 'move') {
+                    canvas.style.zIndex = "10";
+                }
+                
                 if (mode !== 'move') return;
                 
                 div.classList.add('active');
@@ -392,8 +403,8 @@
                     initialRotation = rotation;
                 } else {
                     isDraggingNode = true;
-                    const clientX = e.clientX || e.touches[0].clientX;
-                    const clientY = e.clientY || e.touches[0].clientY;
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
                     moveOffset.x = clientX - div.offsetLeft;
                     moveOffset.y = clientY - div.offsetTop;
                 }
@@ -503,5 +514,3 @@
     </script>
 </body>
 </html>
-
-```
