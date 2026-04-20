@@ -680,10 +680,16 @@
   let songs = JSON.parse(localStorage.getItem('lyricSongs') || '[]');
   let lines = [];
   let current = 0;
-  let speechPitch = 0.8;
-  let speechRate = 1.5;
+  let speechPitch = parseFloat(localStorage.getItem('speechPitch') || '0.8');
+  let speechRate = parseFloat(localStorage.getItem('speechRate') || '1.5');
   const VISIBLE_PAST = 2;
   const VISIBLE_FUTURE = 3;
+
+  // スライダーの初期値をlocalStorageから反映
+  document.getElementById('pitchSlider').value = speechPitch;
+  document.getElementById('pitchVal').textContent = speechPitch.toFixed(2);
+  document.getElementById('rateSlider').value = speechRate;
+  document.getElementById('rateVal').textContent = speechRate.toFixed(2);
 
   // ===== TABS =====
   function switchTab(tab) {
@@ -786,12 +792,14 @@
   document.getElementById('pitchSlider').addEventListener('input', function() {
     speechPitch = parseFloat(this.value);
     document.getElementById('pitchVal').textContent = speechPitch.toFixed(2);
+    localStorage.setItem('speechPitch', speechPitch);
     schedulePreview();
   });
 
   document.getElementById('rateSlider').addEventListener('input', function() {
     speechRate = parseFloat(this.value);
     document.getElementById('rateVal').textContent = speechRate.toFixed(2);
+    localStorage.setItem('speechRate', speechRate);
     schedulePreview();
   });
 
@@ -809,11 +817,11 @@
     const song = songs.find(s => s.id === id);
     const songTitle = song ? song.title : 'PASTE';
 
-    lines = lyricsRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    lines = ['START', ...lyricsRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0)];
     if (lines.length === 0) return;
     current = 0;
     document.getElementById('songTitleBadge').textContent = songTitle;
-    document.getElementById('totalNum').textContent = ' / ' + lines.length;
+    document.getElementById('totalNum').textContent = ' / ' + (lines.length - 1);
     document.getElementById('prompter').style.display = 'flex';
     document.getElementById('tabBar').style.display = 'none';
     renderLines();
@@ -833,20 +841,38 @@
     for (let i = start; i <= end; i++) {
       const div = document.createElement('div');
       div.className = 'lyric-line';
-      div.textContent = lines[i];
-      if (i < current)          div.classList.add('past');
-      else if (i === current)   div.classList.add('current');
-      else if (i === current+1) div.classList.add('next');
-      else                       div.classList.add('future');
+      if (i < current) {
+        div.classList.add('past');
+        div.textContent = lines[i];
+      } else if (i === current) {
+        div.classList.add('current');
+        // 文字をspanに分割してハイライト可能に
+        div.id = 'currentLine';
+        [...lines[i]].forEach((ch, idx) => {
+          const span = document.createElement('span');
+          span.textContent = ch;
+          span.dataset.idx = idx;
+          div.appendChild(span);
+        });
+      } else if (i === current + 1) {
+        div.classList.add('next');
+        div.textContent = lines[i];
+      } else {
+        div.classList.add('future');
+        div.textContent = lines[i];
+      }
       container.appendChild(div);
     }
-    document.getElementById('curNum').textContent = Math.min(current + 1, lines.length);
+    const lyricsTotal = lines.length - 1;
+    document.getElementById('totalNum').textContent = ' / ' + lyricsTotal;
+    document.getElementById('curNum').textContent = current === 0 ? '0' : current;
     document.getElementById('tapHint').style.display = current === 0 ? 'block' : 'none';
   }
 
   function nextLine() {
-    speakText(lines[current]);
-    current = (current + 1) % lines.length;
+    const next = (current + 1) % lines.length;
+    if (lines[next] !== 'START') speakText(lines[next]);
+    current = next;
     renderLines();
     const btn = document.getElementById('nextBtn');
     btn.classList.add('flash');
