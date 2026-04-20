@@ -37,9 +37,67 @@
         .chevron.open {
             transform: rotate(180deg);
         }
+
+        /* Pull to Refresh */
+        #ptr-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            transition: height 0.2s ease;
+            z-index: 9999;
+            border-radius: 0 0 16px 16px;
+        }
+        #ptr-indicator.visible {
+            height: 56px;
+        }
+        #ptr-indicator.refreshing {
+            height: 56px;
+        }
+        #ptr-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2.5px solid rgba(255,255,255,0.4);
+            border-top-color: white;
+            border-radius: 50%;
+            display: none;
+        }
+        #ptr-spinner.spin {
+            display: block;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #ptr-arrow {
+            font-size: 20px;
+            transition: transform 0.2s;
+            display: inline-block;
+        }
+        #ptr-arrow.flip {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 <body class="p-4 md:p-8 text-gray-800">
+
+    <!-- Pull to Refresh インジケーター -->
+    <div id="ptr-indicator">
+        <span id="ptr-arrow">↓</span>
+        <span id="ptr-spinner"></span>
+        <span id="ptr-text">引っ張って更新だゆ🥺</span>
+    </div>
+
     <div class="max-w-3xl mx-auto">
         <header class="mb-8 text-center">
             <div class="inline-block p-3 rounded-2xl gradient-bg mb-4 shadow-lg">
@@ -86,6 +144,85 @@
         const linkContainer = document.getElementById('linkContainer');
         const statusMsg = document.getElementById('status');
 
+        // Pull to Refresh
+        const ptrIndicator = document.getElementById('ptr-indicator');
+        const ptrText = document.getElementById('ptr-text');
+        const ptrArrow = document.getElementById('ptr-arrow');
+        const ptrSpinner = document.getElementById('ptr-spinner');
+
+        let touchStartY = 0;
+        let touchCurrentY = 0;
+        let isPulling = false;
+        let isRefreshing = false;
+        const THRESHOLD = 80; // 何px引っ張ったら発火するか
+
+        document.addEventListener('touchstart', (e) => {
+            if (window.scrollY === 0) {
+                touchStartY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isPulling || isRefreshing) return;
+            touchCurrentY = e.touches[0].clientY;
+            const diff = touchCurrentY - touchStartY;
+            if (diff <= 0) return;
+
+            const progress = Math.min(diff / THRESHOLD, 1);
+            ptrIndicator.classList.add('visible');
+
+            if (diff >= THRESHOLD) {
+                ptrText.textContent = '離して更新だゆ🥹✨';
+                ptrArrow.classList.add('flip');
+            } else {
+                ptrText.textContent = '引っ張って更新だゆ🥺';
+                ptrArrow.classList.remove('flip');
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchend', async () => {
+            if (!isPulling || isRefreshing) return;
+            isPulling = false;
+
+            const diff = touchCurrentY - touchStartY;
+            if (diff >= THRESHOLD) {
+                // 更新開始
+                isRefreshing = true;
+                ptrArrow.style.display = 'none';
+                ptrSpinner.classList.add('spin');
+                ptrText.textContent = '更新中だゆ...🥹';
+                ptrIndicator.classList.add('refreshing');
+
+                await doRefresh();
+
+                ptrSpinner.classList.remove('spin');
+                ptrArrow.style.display = 'inline-block';
+                ptrArrow.classList.remove('flip');
+                ptrText.textContent = '更新したゆ！🥺✨';
+
+                setTimeout(() => {
+                    ptrIndicator.classList.remove('visible', 'refreshing');
+                    isRefreshing = false;
+                    touchStartY = 0;
+                    touchCurrentY = 0;
+                }, 800);
+            } else {
+                ptrIndicator.classList.remove('visible');
+                ptrArrow.classList.remove('flip');
+                touchStartY = 0;
+                touchCurrentY = 0;
+            }
+        });
+
+        async function doRefresh() {
+            const user = localStorage.getItem('gh_user') || (window.location.hostname.endsWith('.github.io') ? window.location.hostname.split('.')[0] : '');
+            const repo = localStorage.getItem('gh_repo') || (window.location.hostname.endsWith('.github.io') ? window.location.pathname.split('/')[1] : '');
+            if (user && repo) {
+                await fetchGitHubFiles(user, repo);
+            }
+        }
+
         async function init() {
             const hostname = window.location.hostname;
             const pathname = window.location.pathname;
@@ -99,7 +236,6 @@
             }
 
             if (user && repo) {
-                // ユーザー名→github.com、リポジトリ名→github.com/user/repoへのリンクだゆ✨
                 infoText.innerHTML = `ユーザー: <a href="https://github.com/${user}" target="_blank" class="text-blue-500 underline font-bold">${user}</a> / リポジトリ: <a href="https://github.com/${user}/${repo}" target="_blank" class="text-blue-500 underline font-bold">${repo}</a> 🥺✨`;
                 fetchGitHubFiles(user, repo);
             } else {
@@ -123,9 +259,7 @@
             }
         };
 
-        // ファイル名から連番プレフィックスを抽出するゆ（例: "tool3.html" → {base:"tool", num:3}）
         function parseSerialName(name) {
-            // 末尾の数字を検出（拡張子除く）
             const stem = name.replace(/\.html$/i, '');
             const m = stem.match(/^(.*?)(\d+)$/);
             if (m) return { base: m[1], num: parseInt(m[2]) };
@@ -152,9 +286,7 @@
                     return;
                 }
 
-                // 連番グループに分類するゆ
                 const allStems = new Set(htmlFiles.map(f => f.name.replace(/\.html$/i, '')));
-
                 const groups = {};
                 const singles = [];
 
@@ -180,7 +312,6 @@
                     }
                 });
 
-                // 2件以上あるグループだけ折りたたみ、1件だけなら単体扱い
                 const trueGroups = {};
                 Object.entries(groups).forEach(([base, items]) => {
                     if (items.length >= 2) {
