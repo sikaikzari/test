@@ -38,10 +38,7 @@
             transform: rotate(180deg);
         }
 
-        /* Pull to Refresh */
-        html, body {
-            overscroll-behavior-y: none;
-        }
+        /* PWA専用 Pull to Refresh スピナー（Safariブラウザでは不要・非表示） */
         #ptr-indicator {
             position: fixed;
             top: 18px;
@@ -60,7 +57,6 @@
         #ptr-indicator.visible {
             opacity: 1;
         }
-        /* iOS風 放射状スピナー */
         #ptr-spinner {
             width: 28px;
             height: 28px;
@@ -75,25 +71,25 @@
             margin-left: -1.25px;
             margin-top: -12px;
             border-radius: 2px;
-            background: #aaa;
+            background: #888;
             transform-origin: 50% 12px;
             opacity: 0.15;
         }
         #ptr-spinner.spin .blade {
             animation: blade-fade 0.8s linear infinite;
         }
-        #ptr-spinner .blade:nth-child(1)  { transform: rotate(0deg);    animation-delay: 0s; }
-        #ptr-spinner .blade:nth-child(2)  { transform: rotate(30deg);   animation-delay: -0.733s; }
-        #ptr-spinner .blade:nth-child(3)  { transform: rotate(60deg);   animation-delay: -0.667s; }
-        #ptr-spinner .blade:nth-child(4)  { transform: rotate(90deg);   animation-delay: -0.600s; }
-        #ptr-spinner .blade:nth-child(5)  { transform: rotate(120deg);  animation-delay: -0.533s; }
-        #ptr-spinner .blade:nth-child(6)  { transform: rotate(150deg);  animation-delay: -0.467s; }
-        #ptr-spinner .blade:nth-child(7)  { transform: rotate(180deg);  animation-delay: -0.400s; }
-        #ptr-spinner .blade:nth-child(8)  { transform: rotate(210deg);  animation-delay: -0.333s; }
-        #ptr-spinner .blade:nth-child(9)  { transform: rotate(240deg);  animation-delay: -0.267s; }
-        #ptr-spinner .blade:nth-child(10) { transform: rotate(270deg);  animation-delay: -0.200s; }
-        #ptr-spinner .blade:nth-child(11) { transform: rotate(300deg);  animation-delay: -0.133s; }
-        #ptr-spinner .blade:nth-child(12) { transform: rotate(330deg);  animation-delay: -0.067s; }
+        #ptr-spinner .blade:nth-child(1)  { transform: rotate(0deg);   animation-delay: 0s; }
+        #ptr-spinner .blade:nth-child(2)  { transform: rotate(30deg);  animation-delay: -0.733s; }
+        #ptr-spinner .blade:nth-child(3)  { transform: rotate(60deg);  animation-delay: -0.667s; }
+        #ptr-spinner .blade:nth-child(4)  { transform: rotate(90deg);  animation-delay: -0.600s; }
+        #ptr-spinner .blade:nth-child(5)  { transform: rotate(120deg); animation-delay: -0.533s; }
+        #ptr-spinner .blade:nth-child(6)  { transform: rotate(150deg); animation-delay: -0.467s; }
+        #ptr-spinner .blade:nth-child(7)  { transform: rotate(180deg); animation-delay: -0.400s; }
+        #ptr-spinner .blade:nth-child(8)  { transform: rotate(210deg); animation-delay: -0.333s; }
+        #ptr-spinner .blade:nth-child(9)  { transform: rotate(240deg); animation-delay: -0.267s; }
+        #ptr-spinner .blade:nth-child(10) { transform: rotate(270deg); animation-delay: -0.200s; }
+        #ptr-spinner .blade:nth-child(11) { transform: rotate(300deg); animation-delay: -0.133s; }
+        #ptr-spinner .blade:nth-child(12) { transform: rotate(330deg); animation-delay: -0.067s; }
         @keyframes blade-fade {
             0%   { opacity: 1; }
             100% { opacity: 0.15; }
@@ -102,7 +98,6 @@
 </head>
 <body class="p-4 md:p-8 text-gray-800">
 
-    <!-- Pull to Refresh インジケーター -->
     <div id="ptr-indicator">
         <div id="ptr-spinner">
             <div class="blade"></div><div class="blade"></div><div class="blade"></div>
@@ -159,52 +154,64 @@
         const statusMsg = document.getElementById('status');
 
         // Pull to Refresh
+        // PWAモード（standalone）のときだけカスタムPTRを動かすゆ
+        // Safariブラウザではネイティブのpull-to-refreshに任せる
+        const isPWA = window.navigator.standalone === true;
+
         const ptrIndicator = document.getElementById('ptr-indicator');
         const ptrSpinner = document.getElementById('ptr-spinner');
 
-        let touchStartY = 0;
-        let isPulling = false;
-        let isRefreshing = false;
-        const THRESHOLD = 70;
+        if (isPWA) {
+            // PWAモードのみ: overscrollを封じてカスタムPTRを動かす
+            document.body.style.overscrollBehaviorY = 'contain';
 
-        // PWA standalone では body のスクロールが効かないので scrollable な要素を動的に特定するゆ
-        function getScrollTop() {
-            return document.documentElement.scrollTop || document.body.scrollTop || window.scrollY || 0;
-        }
+            let touchStartY = 0;
+            let isPulling = false;
+            let isRefreshing = false;
+            const THRESHOLD = 70;
 
-        document.addEventListener('touchstart', (e) => {
-            if (getScrollTop() === 0 && !isRefreshing) {
-                touchStartY = e.touches[0].clientY;
-                isPulling = true;
+            function getScrollTop() {
+                return Math.max(
+                    document.documentElement.scrollTop,
+                    document.body.scrollTop,
+                    window.scrollY || 0
+                );
             }
-        }, { passive: true });
 
-        document.addEventListener('touchmove', (e) => {
-            if (!isPulling || isRefreshing) return;
-            const diff = e.touches[0].clientY - touchStartY;
-            if (diff <= 0) { isPulling = false; return; }
-            ptrIndicator.classList.add('visible');
-        }, { passive: true });
+            document.addEventListener('touchstart', (e) => {
+                if (getScrollTop() === 0 && !isRefreshing) {
+                    touchStartY = e.touches[0].clientY;
+                    isPulling = true;
+                }
+            }, { passive: true });
 
-        document.addEventListener('touchend', async (e) => {
-            if (!isPulling || isRefreshing) return;
-            isPulling = false;
-            const diff = e.changedTouches[0].clientY - touchStartY;
+            document.addEventListener('touchmove', (e) => {
+                if (!isPulling || isRefreshing) return;
+                const diff = e.touches[0].clientY - touchStartY;
+                if (diff <= 0) { isPulling = false; return; }
+                ptrIndicator.classList.add('visible');
+            }, { passive: true });
 
-            if (diff >= THRESHOLD) {
-                isRefreshing = true;
-                ptrSpinner.classList.add('spin');
-                await doRefresh();
-                ptrSpinner.classList.remove('spin');
-                setTimeout(() => {
+            document.addEventListener('touchend', async (e) => {
+                if (!isPulling || isRefreshing) return;
+                isPulling = false;
+                const diff = e.changedTouches[0].clientY - touchStartY;
+
+                if (diff >= THRESHOLD) {
+                    isRefreshing = true;
+                    ptrSpinner.classList.add('spin');
+                    await doRefresh();
+                    ptrSpinner.classList.remove('spin');
+                    setTimeout(() => {
+                        ptrIndicator.classList.remove('visible');
+                        isRefreshing = false;
+                    }, 400);
+                } else {
                     ptrIndicator.classList.remove('visible');
-                    isRefreshing = false;
-                }, 300);
-            } else {
-                ptrIndicator.classList.remove('visible');
-            }
-            touchStartY = 0;
-        });
+                }
+                touchStartY = 0;
+            });
+        }
 
         async function doRefresh() {
             const user = localStorage.getItem('gh_user') || (window.location.hostname.endsWith('.github.io') ? window.location.hostname.split('.')[0] : '');
