@@ -1,6 +1,6 @@
 # test
 ##SiteMap（Github Auto Launcher）
-https://sikaikzari.github.io/test/sitemap.html
+https://sikaikzari.github.io/test/sitemap2.html
 
 #SpliteStudio Ultimate
 https://sikaikzari.github.io/test/spritestudio3.html
