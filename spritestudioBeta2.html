@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sprite Studio for Gemini - Ultimate Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .checkerboard {
+            background-image: conic-gradient(#ffffff 25%, #d1d5db 25% 50%, #ffffff 50% 75%, #d1d5db 75%);
+            background-size: 20px 20px;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+        .selected-sprite { ring: 4px solid #38bdf8; position: relative; }
+        .selection-number {
+            position: absolute; top: 4px; right: 4px;
+            background: #38bdf8; color: white;
+            width: 24px; height: 24px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 13px; z-index: 20;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
+        .tab-active { border-bottom: 4px solid #38bdf8; color: #38bdf8; }
+
+        #map-bg {
+            background-color: #2b3a67;
+            background-image: url('https://raw.githubusercontent.com/sikaikzari/test/5dcc80815d3f54b690c867f097939f6c57a600d9/IMG_2383.jpeg');
+            background-size: 512px 512px;
+            background-repeat: repeat;
+            filter: saturate(0.8) brightness(0.8) hue-rotate(160deg);
+        }
+
+        .no-select { 
+            user-select: none; 
+            -webkit-user-select: none; 
+            -webkit-touch-callout: none;
+        }
+
+        .draggable-box {
+            position: absolute;
+            cursor: default;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e293b;
+            min-width: 140px;
+            min-height: 80px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .draggable-box:active { z-index: 100; }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+
+        .resizer { position: absolute; background: transparent; z-index: 60; }
+        .resizer-rb { bottom: 0; right: 0; width: 14px; height: 14px; cursor: nwse-resize; z-index: 70; background: linear-gradient(135deg, transparent 50%, #475569 50%); border-bottom-right-radius: 1rem; }
+
+        .main-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 100px);
+            overflow: hidden;
+        }
+
+        /* --- 虫眼鏡のデザイン --- */
+        #magnifier {
+            position: fixed;
+            pointer-events: none;
+            display: none;
+            z-index: 99999;
+            width: 340px; 
+            height: 408px;
+            border: 4px solid #38bdf8;
+            border-radius: 24px; /* 角丸四角形 */
+            overflow: hidden;
+            background-color: white;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transform: translate(-50%, -50%); /* 中央寄せ */
+        }
+
+        .pinned { z-index: 9998 !important; border: 2px solid #38bdf8 !important; }
+        .pin-btn { font-size: 14px; opacity: 0.6; transition: opacity 0.2s; cursor: pointer; user-select: none; margin-right: 2px; }
+        .pin-btn:hover { opacity: 1; color: #38bdf8; }
+        .pinned .pin-btn { opacity: 1; filter: drop-shadow(0 0 2px #38bdf8); }
+
+        /* ドロップ時オーバーレイ */
+        #drop-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.6); /* うっすら白く */
+            display: none;
+            z-index: 100000;
+            pointer-events: none;
+            border: 8px dashed #38bdf8;
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            color: #38bdf8;
+            font-weight: bold;
+            font-size: 2rem;
+        }
+
+        @media (min-width: 1024px) {
+            #box-preview { top: 0; left: 0; width: 24.5%; height: 38%; display: flex !important; }
+            #box-quick { top: 0; left: 25.5%; width: 24.5%; height: 38%; display: flex !important; }
+            #box-advanced { top: 40%; left: 0; width: 50.5%; height: 60%; }
+            #box-browser { top: 0; right: 0; width: 48.5%; height: 100%; }
+            #box-preview-mobile, #box-quick-mobile { display: none !important; }
+            .mobile-fixed-top { display: none !important; }
+        }
+
+        @media (max-width: 1023px) {
+            #box-preview, #box-quick { display: none !important; }
+            body { padding: 0; overflow: hidden; height: 100vh; }
+            header { position: sticky; top: 0; z-index: 2000; padding: 0.5rem; margin-bottom: 0; background-color: #0f172a; border-bottom: 1px solid #334155; }
+            .main-container { height: calc(100vh - 80px); overflow: hidden; display: flex; flex-direction: column; padding: 0; }
+            .mobile-fixed-top { flex-shrink: 0; display: flex; gap: 0.25rem; padding: 0.5rem; background-color: #0f172a; z-index: 1100; }
+            .mobile-scrollable { flex-grow: 1; overflow-y: auto; padding: 0.5rem; padding-bottom: 120px; display: flex; flex-direction: column; }
+            .draggable-box { position: relative !important; top: auto !important; left: auto !important; width: 100% !important; height: auto !important; margin-bottom: 0.75rem; min-height: unset !important; }
+            #box-browser { order: 99; }
+            #box-preview-mobile, #box-quick-mobile { margin-bottom: 0; flex: 1 1 50%; height: 180px !important; min-height: 180px !important; }
+            .resizer { display: none !important; }
+        }
+
+        .d-pad { position: fixed; bottom: 30px; left: 20px; display: grid; grid-template-areas: ". up ." "left . right" ". down ."; gap: 12px; z-index: 3000; }
+        .d-btn { width: 58px; height: 58px; background: rgba(30, 41, 59, 0.2); border: 2px solid rgba(56, 189, 248, 0.6); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.5); font-size: 24px; touch-action: none; backdrop-filter: blur(2px); }
+        .d-btn:active { background: rgba(56, 189, 248, 0.4); color: #fff; transform: scale(0.9); border-color: #38bdf8; }
+        .area-up { grid-area: up; } .area-down { grid-area: down; } .area-left { grid-area: left; } .area-right { grid-area: right; }
+        #eyedropper-loupe { position:fixed; pointer-events:none; display:none; z-index:99999; width:120px; height:120px; border:3px solid #f59e0b; border-radius:50%; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.6); }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen overscroll-none no-select flex flex-col overflow-hidden">
+    
+    <!-- ドロップ用オーバーレイ -->
+    <div id="drop-overlay" class="flex">ファイルをドロップしてゆ🥺</div>
+
+    <!-- 拡大鏡エレメント -->
+    <div id="magnifier" class="checkerboard">
+        <canvas id="magnifierCanvas" width="340" height="408" class="w-full h-full object-contain"></canvas>
+    </div>
+
+    <!-- スポイトルーペ -->
+    <div id="eyedropper-loupe">
+        <canvas id="loupeCanvas" width="120" height="120"></canvas>
+    </div>
+
+    <header class="flex flex-col sm:flex-row justify-between items-center px-4 py-2 gap-2 flex-shrink-0 z-[2000]">
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">🪄</span>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-emerald-400">
+                SpriteStudio Ultimate
+            </h1>
+        </div>
+        <div class="flex bg-slate-800 rounded-xl p-1 shadow-inner">
+            <button onclick="switchTab('edit')" id="tab-edit" class="px-4 py-1.5 rounded-lg font-bold transition tab-active text-sm">Editor</button>
+            <button onclick="switchTab('test')" id="tab-test" class="px-4 py-1.5 rounded-lg font-bold transition text-slate-500 text-sm">Test Run</button>
+            <button onclick="switchTab('eyedrop')" id="tab-eyedrop" class="px-4 py-1.5 rounded-lg font-bold transition text-slate-500 text-sm">🩸 透過追加</button>
+        </div>
+        <div class="flex gap-2">
+            <input type="file" id="imageInput" class="hidden" accept="image/*">
+            <label for="imageInput" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-full cursor-pointer transition shadow-lg font-bold text-[10px] uppercase">画像読込</label>
+            <button id="clearSelection" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-full transition text-[10px] font-bold shadow-lg uppercase">全解除</button>
+        </div>
+    </header>
+
+    <div id="view-edit" class="main-container flex-grow no-select">
+        <div class="mobile-fixed-top lg:hidden">
+            <!-- モバイル側のプレビューエリアにもタップ命令を追加しただゆ🥺 -->
+            <section id="box-preview-mobile" onclick="document.getElementById('imageInput').click()" class="draggable-box bg-slate-800 p-2 rounded-2xl shadow-xl flex-1 active:scale-95 transition-transform cursor-pointer">
+                <div class="flex justify-between items-center mb-1 px-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Preview</label>
+                </div>
+                <div class="checkerboard rounded-xl flex justify-center items-center bg-white flex-grow overflow-hidden shadow-inner p-1 relative">
+                    <canvas id="previewCanvasMobile" width="170" height="204" class="max-w-full h-full object-contain pointer-events-none"></canvas>
+                </div>
+            </section>
+            <section id="box-quick-mobile" class="draggable-box bg-slate-800 p-2 rounded-2xl shadow-xl flex-1">
+                <div class="flex justify-between items-center mb-1 px-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Quick</label>
+                </div>
+                <div class="space-y-1 flex-grow flex flex-col justify-center px-1 overflow-hidden">
+                    <div class="flex items-center justify-between bg-slate-900/50 p-1 rounded-lg border border-slate-700 w-[95%] mx-auto">
+                        <span class="text-[9px] text-slate-400 uppercase font-bold px-1">Grid</span>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="colsInputMobile" value="6" min="1" max="10" class="bg-slate-800 border border-slate-600 w-9 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-[11px]" onchange="onGridChange()">
+                            <span class="text-slate-500 text-[10px]">×</span>
+                            <input type="number" id="rowsInputMobile" value="5" min="1" max="10" class="bg-slate-800 border border-slate-600 w-9 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-[11px]" onchange="onGridChange()">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-900/50 p-1 rounded-lg border border-slate-700 w-[95%] mx-auto">
+                        <span class="text-[9px] text-slate-400 uppercase font-bold px-1">FPS</span>
+                        <input type="number" id="fpsInputMobile" value="5" min="1" max="60" class="bg-slate-800 border border-slate-600 w-12 px-1 py-0.5 rounded text-center text-sky-400 font-bold text-[11px]">
+                    </div>
+                    <button onclick="isPlaying = !isPlaying" class="bg-sky-600 py-1 rounded-lg font-bold text-[10px]">再生 / 停止</button>
+                    <button onclick="saveAction()" class="bg-emerald-600 py-1 rounded-lg font-bold text-[10px]">保存</button>
+                </div>
+            </section>
+        </div>
+
+        <div class="mobile-scrollable">
+            <section id="box-preview" class="draggable-box bg-slate-800 p-3 rounded-2xl shadow-xl hidden lg:flex">
+                <div class="drag-handle flex justify-between items-center mb-1.5 px-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Preview</label>
+                    <div class="flex items-center gap-1">
+                        <span onclick="togglePin(this.closest('.draggable-box'))" class="pin-btn" title="ピン留め">📍</span>
+                        <span class="text-slate-600">⠿</span>
+                    </div>
+                </div>
+                <!-- PC側のプレビューエリアに onclick を追加しただゆ！ -->
+                <div id="previewArea" onclick="document.getElementById('imageInput').click()" class="checkerboard rounded-xl flex justify-center items-center bg-white flex-grow overflow-hidden shadow-inner p-1 cursor-pointer relative">
+                    <!-- canvas自体がタップを邪魔しないように pointer-events-none を追加しただゆ -->
+                    <canvas id="previewCanvas" width="170" height="204" class="max-w-full h-full object-contain pointer-events-none"></canvas>
+                    <div id="previewPlaceholder" class="absolute inset-0 flex items-center justify-center text-slate-400 transition-colors">
+                        <span class="text-xs font-bold uppercase tracking-widest">Empty</span>
+                    </div>
+                </div>
+                <div class="drag-handle h-4 w-full mt-1.5 rounded-b-2xl"></div>
+                <div class="resizer resizer-rb"></div>
+            </section>
+            
+            <section id="box-quick" class="draggable-box bg-slate-800 p-3 rounded-2xl shadow-xl hidden lg:flex">
+                <div class="drag-handle flex justify-between items-center mb-1.5 px-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quick</label>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-600">⠿</span>
+                    </div>
+                </div>
+                <div class="space-y-1.5 flex-grow flex flex-col justify-start px-1 overflow-y-auto min-h-0 pb-1">
+                    <div class="flex items-center justify-between bg-slate-900/50 p-1.5 rounded-xl border border-slate-700">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider px-1">Grid</span>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="colsInput" value="6" min="1" max="10" class="bg-slate-800 border border-slate-600 w-10 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-sm" onchange="onGridChange()">
+                            <span class="text-slate-500 text-xs">×</span>
+                            <input type="number" id="rowsInput" value="5" min="1" max="10" class="bg-slate-800 border border-slate-600 w-10 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-sm" onchange="onGridChange()">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-900/50 p-1.5 rounded-xl border border-slate-700">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider px-1">FPS</span>
+                        <input type="number" id="fpsInput" value="5" min="1" max="60" class="bg-slate-800 border border-slate-600 w-12 px-1 py-0.5 rounded text-center text-sky-400 font-bold text-sm">
+                    </div>
+                    <button id="togglePlay" onclick="isPlaying = !isPlaying" class="w-full bg-sky-600 hover:bg-sky-500 py-1.5 rounded-xl font-bold transition text-[11px] shadow-lg">再生 / 停止</button>
+                    <button id="saveBtn" onclick="saveAction()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-1.5 rounded-xl font-bold transition text-[11px] shadow-lg">画像を保存</button>
+                </div>
+                <div class="drag-handle h-4 w-full mt-1.5 rounded-b-2xl"></div>
+                <div class="resizer resizer-rb"></div>
+            </section>
+
+            <section id="box-browser" class="draggable-box bg-slate-800 p-4 rounded-2xl shadow-xl">
+                <div class="drag-handle flex justify-between items-center mb-3">
+                    <h2 class="font-bold text-emerald-400 flex items-center gap-2 text-[10px] uppercase tracking-widest">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Browser
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <div id="selectionInfo" class="text-[10px] bg-sky-900/50 text-sky-400 px-3 py-1 rounded-full border border-sky-500/30 font-bold">0 frames</div>
+                        <span class="text-slate-600 lg:inline hidden">⠿</span>
+                    </div>
+                </div>
+                <div class="overflow-y-auto flex-grow pr-1 bg-slate-950/50 rounded-xl border border-slate-700/50 p-2 min-h-[180px]">
+                    <div id="grid-container" class="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                        <div onclick="document.getElementById('imageInput').click()" class="col-span-full flex flex-col items-center justify-center py-10 text-slate-600 cursor-pointer border-2 border-dashed border-slate-800 rounded-2xl hover:bg-slate-800/20 transition">
+                            <p class="text-xs">画像を選択してゆ🥺</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="drag-handle h-4 w-full mt-2 lg:block hidden"></div>
+                <div class="resizer resizer-rb"></div>
+            </section>
+
+            <section id="box-advanced" class="draggable-box bg-slate-800 p-4 rounded-2xl shadow-xl">
+                <div class="drag-handle flex justify-between items-center border-b border-slate-700 pb-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Advanced Settings</label>
+                        <button id="btn-recommend" onclick="toggleRecommendPreset()" class="bg-slate-700 text-slate-400 text-[9px] font-bold px-3 py-1 rounded-full shadow transition-all duration-300">オススメ設定</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-600 lg:inline hidden">⠿</span>
+                    </div>
+                </div>
+                <div class="overflow-y-auto flex-grow space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-4">
+                            <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700 space-y-3">
+                                <label class="text-[10px] font-bold text-emerald-400 block uppercase tracking-widest border-b border-emerald-900/30 pb-1">透過・境界</label>
+                                <div class="space-y-2">
+                                    <div>
+                                        <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>しきい値</span><span id="rangeVal1" class="text-emerald-400 font-bold">150</span></div>
+                                        <input type="range" id="threshold" min="0" max="255" value="150" class="w-full h-1.5 bg-slate-700 rounded-lg accent-emerald-500">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>削り</span><span id="rangeVal2" class="text-emerald-400 font-bold">0.0</span></div>
+                                        <input type="range" id="shrink" min="0" max="5" step="0.1" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-emerald-500">
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>ぼかし</span><span id="rangeVal3" class="text-emerald-400 font-bold">0.0</span></div>
+                                        <input type="range" id="blur" min="0" max="5" step="0.1" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-emerald-500">
+                                    </div>
+                                </div>
+                                <!-- HSVベータ -->
+                                <div class="border-t border-slate-700 pt-2 mt-1">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" id="hsvOpt" class="w-3.5 h-3.5 rounded accent-lime-500">
+                                        <label for="hsvOpt" class="text-[10px] text-lime-400 font-bold uppercase tracking-widest">HSV透過 <span class="bg-lime-900 text-lime-300 px-1.5 py-0.5 rounded-full text-[8px] ml-1">β</span></label>
+                                    </div>
+                                    <div id="hsvSubControl" class="space-y-2 opacity-40 pointer-events-none transition-opacity">
+                                        <div>
+                                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>色相 中心 (H)</span><span id="rangeValHue" class="text-lime-400 font-bold">120</span></div>
+                                            <input type="range" id="hsvHue" min="0" max="360" value="120" class="w-full h-1.5 bg-slate-700 rounded-lg accent-lime-500">
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>色相 幅 (±)</span><span id="rangeValHueRange" class="text-lime-400 font-bold">40</span></div>
+                                            <input type="range" id="hsvHueRange" min="5" max="90" value="40" class="w-full h-1.5 bg-slate-700 rounded-lg accent-lime-500">
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>彩度 最低 (S)</span><span id="rangeValSat" class="text-lime-400 font-bold">0.30</span></div>
+                                            <input type="range" id="hsvSat" min="0" max="1" step="0.05" value="0.30" class="w-full h-1.5 bg-slate-700 rounded-lg accent-lime-500">
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>強さ</span><span id="rangeValHsvStr" class="text-lime-400 font-bold">1.00</span></div>
+                                            <input type="range" id="hsvStr" min="0" max="1" step="0.05" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-lime-500">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 右カラム：エッジ再描画 → トリミング(4辺) -->
+                        <div class="space-y-4">
+                        <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700 space-y-3">
+                            <div class="flex items-center gap-2 mb-1">
+                                <input type="checkbox" id="outlineOpt" class="w-3.5 h-3.5 rounded accent-sky-500">
+                                <label for="outlineOpt" class="text-[10px] text-sky-400 font-bold uppercase tracking-widest">エッジ再描画</label>
+                            </div>
+                            <div id="outlineSubControl" class="space-y-3 opacity-40 pointer-events-none transition-opacity">
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>太さ</span><span id="rangeValWidth" class="text-sky-400 font-bold">1.0</span></div>
+                                    <input type="range" id="outlineWidth" min="0.5" max="5" step="0.1" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-sky-500">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Alpha</span><span id="rangeValAlpha" class="text-sky-400 font-bold">0.8</span></div>
+                                    <input type="range" id="outlineAlpha" min="0" max="1" step="0.05" value="0.8" class="w-full h-1.5 bg-slate-700 rounded-lg accent-sky-500">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>ColorMatch</span><span id="rangeValColorMatch" class="text-sky-400 font-bold">1.00</span></div>
+                                    <input type="range" id="outlineColorMatch" min="0" max="2" step="0.05" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-sky-500">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>Offset</span><span id="rangeVal4" class="text-sky-400 font-bold">0.0</span></div>
+                                    <input type="range" id="outlineOffset" min="0" max="5" step="0.1" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-sky-500">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- トリミング 4辺 -->
+                        <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700 space-y-2">
+                            <label class="text-[10px] font-bold text-orange-400 block uppercase tracking-widest border-b border-orange-900/30 pb-1">トリミング</label>
+                            <div>
+                                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>上辺</span><span id="rangeValTrimTop" class="text-orange-400 font-bold">0</span></div>
+                                <input type="range" id="trimTop" min="0" max="30" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-orange-500">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>下辺</span><span id="rangeValTrimBottom" class="text-orange-400 font-bold">0</span></div>
+                                <input type="range" id="trimBottom" min="0" max="30" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-orange-500">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>左辺</span><span id="rangeValTrimLeft" class="text-orange-400 font-bold">0</span></div>
+                                <input type="range" id="trimLeft" min="0" max="30" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-orange-500">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>右辺</span><span id="rangeValTrimRight" class="text-orange-400 font-bold">0</span></div>
+                                <input type="range" id="trimRight" min="0" max="30" value="0" class="w-full h-1.5 bg-slate-700 rounded-lg accent-orange-500">
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="drag-handle h-4 w-full mt-2 lg:block hidden"></div>
+                <div class="resizer resizer-rb"></div>
+            </section>
+        </div>
+    </div>
+
+    <div id="view-test" class="hidden flex-grow overflow-hidden relative no-select">
+        <div class="bg-slate-800 p-4 shadow-2xl h-full">
+            <div id="test-arena" class="relative w-full h-full overflow-hidden bg-slate-950 rounded-xl border border-slate-700 shadow-inner">
+                <div id="map-bg" class="absolute inset-0"></div>
+                <div id="player" class="absolute pointer-events-none" style="width: 85px; height: 102px; transform: translate(-50%, -100%);">
+                    <canvas id="playerCanvas" width="170" height="204" class="w-full h-full"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="d-pad lg:hidden">
+            <button class="d-btn area-up" id="btn-up">▲</button>
+            <button class="d-btn area-left" id="btn-left">◀</button>
+            <button class="d-btn area-right" id="btn-right">▶</button>
+            <button class="d-btn area-down" id="btn-down">▼</button>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- 🩸 透過追加タブ -->
+    <div id="view-eyedrop" class="hidden flex-grow overflow-y-auto no-select bg-slate-900">
+        <div class="flex flex-col p-3 gap-3 pb-8">
+            <div class="flex flex-col lg:flex-row gap-3">
+                <div class="flex flex-col gap-2 lg:flex-grow bg-slate-800 rounded-2xl p-3 border border-slate-700">
+
+                    <!-- モード切替 + ブラシサイズ + undo/reset -->
+                    <div class="flex flex-wrap items-center gap-2 mb-2 flex-shrink-0">
+                        <!-- モードボタン -->
+                        <div class="flex bg-slate-900 rounded-xl p-0.5 gap-0.5">
+                            <button id="mode-eyedrop-btn" onclick="setEyedropMode('eyedrop')"
+                                class="px-3 py-1 rounded-lg text-[10px] font-bold transition bg-amber-500 text-white">
+                                💧 スポイト
+                            </button>
+                            <button id="mode-brush-btn" onclick="setEyedropMode('brush')"
+                                class="px-3 py-1 rounded-lg text-[10px] font-bold transition text-slate-400">
+                                🟢 保護ブラシ
+                            </button>
+                            <button id="mode-erase-btn" onclick="setEyedropMode('erase')"
+                                class="px-3 py-1 rounded-lg text-[10px] font-bold transition text-slate-400">
+                                🧹 消しゴム
+                            </button>
+                        </div>
+                        <!-- 許容値（スポイト時のみ） -->
+                        <div id="tol-wrap" class="flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400">許容値</span>
+                            <input type="number" id="eyedropTolerance" value="30" min="0" max="128"
+                                class="bg-slate-700 border border-slate-600 w-14 px-1 py-0.5 rounded text-center text-amber-400 font-bold text-[11px]">
+                        </div>
+                        <!-- GRID（許容値の右・Editorと連動） -->
+                        <div id="tol-grid-wrap" class="flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400">GRID</span>
+                            <input type="number" id="colsInputEyedrop" value="6" min="1" max="10"
+                                class="bg-slate-700 border border-slate-600 w-9 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-[11px]"
+                                onchange="onGridChangeFrom('eyedrop')">
+                            <span class="text-slate-500 text-[10px]">×</span>
+                            <input type="number" id="rowsInputEyedrop" value="5" min="1" max="10"
+                                class="bg-slate-700 border border-slate-600 w-9 px-1 py-0.5 rounded text-center text-orange-400 font-bold text-[11px]"
+                                onchange="onGridChangeFrom('eyedrop')">
+                            <label class="flex items-center gap-1 ml-1">
+                                <input type="checkbox" id="grid1x1Eyedrop" class="accent-sky-400 w-3 h-3" onchange="onGrid1x1Change(this)">
+                                <span class="text-[10px] text-sky-400 font-bold">1×1</span>
+                            </label>
+                        </div>
+                        <!-- ブラシサイズ（ブラシ/消しゴム時のみ） -->
+                        <div id="brush-wrap" class="hidden flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400">サイズ</span>
+                            <input type="range" id="brushSize" min="1" max="30" value="5"
+                                class="w-20 h-1.5 accent-emerald-400">
+                            <span id="brushSizeVal" class="text-[10px] text-emerald-400 font-bold w-5">5</span>
+                        </div>
+                        <div class="flex gap-2 ml-auto">
+                            <button onclick="undoEyedrop()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-[10px] font-bold">↩ 元に戻す</button>
+                            <button onclick="clearMask()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-[10px] font-bold text-emerald-400">🟢 マスク消去</button>
+                            <button onclick="resetEyedrop()" class="bg-rose-900 hover:bg-rose-800 px-3 py-1 rounded-lg text-[10px] font-bold text-rose-300">🗑 リセット</button>
+                        </div>
+                    </div>
+
+                    <!-- フレーム選択 -->
+                    <div class="flex items-center gap-2 mb-2 flex-shrink-0 flex-wrap">
+                        <span class="text-[10px] text-slate-400">フレーム:</span>
+                        <div id="eyedrop-frame-select" class="flex gap-1 flex-wrap"></div>
+                        <label class="flex items-center gap-1 ml-2">
+                            <input type="checkbox" id="eyedropAllFrames" class="accent-amber-500 w-3.5 h-3.5">
+                            <span class="text-[10px] text-amber-400 font-bold">全フレームに適用</span>
+                        </label>
+                    </div>
+
+                    <!-- キャンバスエリア（スプライト + マスクオーバーレイを重ねる） -->
+                    <div class="checkerboard rounded-xl overflow-hidden relative" id="eyedrop-canvas-wrap" style="height:60vw; max-height:420px; min-height:200px;">
+                        <!-- ベース：処理済みスプライト -->
+                        <canvas id="eyedropper-canvas" style="image-rendering:pixelated; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);"></canvas>
+                        <!-- マスクオーバーレイ（緑の半透明） -->
+                        <canvas id="mask-canvas" style="image-rendering:auto; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); cursor:crosshair;"></canvas>
+                        <!-- 未読込時：タップで画像選択 -->
+                        <div id="eyedrop-empty" onclick="document.getElementById('imageInput').click()"
+                            class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 text-sm font-bold cursor-pointer hover:bg-slate-700/20 transition">
+                            <span class="text-3xl mb-2">🖼️</span>
+                            <span>タップして画像を読み込むゆ🥺</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:w-52 w-full flex-shrink-0 bg-slate-800 rounded-2xl p-3 border border-slate-700">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">追加した透過色</label>
+                    <div id="eyedrop-color-list" class="space-y-1.5 mb-3">
+                        <p id="eyedrop-color-empty" class="text-[10px] text-slate-600 text-center py-2">まだないゆ</p>
+                    </div>
+                    <div class="pt-2 border-t border-slate-700 space-y-2">
+                        <div class="text-[9px] text-emerald-400 text-center">🟢 緑で塗った部分は透過されないゆ</div>
+                        <button onclick="confirmEyedrop()" class="w-full bg-amber-600 hover:bg-amber-500 py-1.5 rounded-xl font-bold text-[11px] transition shadow-lg">✅ EditorとTestRunに反映</button>
+                        <button onclick="saveTrimmed()" class="w-full bg-sky-700 hover:bg-sky-600 py-1.5 rounded-xl font-bold text-[11px] transition shadow-lg">✂️ ぴったり切り出して保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ROWS = 5, COLS = 6, SPRITE_W = 170, SPRITE_H = 204;
+        let originalImg = null, spriteCanvases = [], selectedIndices = []; 
+        let isPlaying = true, animationStep = 0, lastTimestamp = 0;
+        let playerPos = { x: 300, y: 300 }; const keys = {};
+        let isRecommendActive = false, previousSettings = null;
+        let eyedropColors = [], eyedropHistory = [], eyedropFrameIdx = 0;
+
+        function onGridChangeFrom(source) {
+            const colsPC   = document.getElementById('colsInput');
+            const rowsPC   = document.getElementById('rowsInput');
+            const colsMob  = document.getElementById('colsInputMobile');
+            const rowsMob  = document.getElementById('rowsInputMobile');
+            const colsED   = document.getElementById('colsInputEyedrop');
+            const rowsED   = document.getElementById('rowsInputEyedrop');
+            const isMobile = window.innerWidth < 1024;
+
+            // 変更元から値を取得して全部に同期
+            let c, r;
+            if (source === 'eyedrop') { c = colsED.value; r = rowsED.value; }
+            else if (isMobile)        { c = colsMob.value; r = rowsMob.value; }
+            else                      { c = colsPC.value;  r = rowsPC.value;  }
+
+            [colsPC, colsMob, colsED].forEach(el => el.value = c);
+            [rowsPC, rowsMob, rowsED].forEach(el => el.value = r);
+
+            COLS = Math.min(Math.max(parseInt(c) || 6, 1), 10);
+            ROWS = Math.min(Math.max(parseInt(r) || 5, 1), 10);
+            if (COLS * ROWS > 100) {
+                ROWS = Math.floor(100 / COLS);
+                [rowsPC, rowsMob, rowsED].forEach(el => el.value = ROWS);
+            }
+            // 1x1チェックボックスの状態も同期
+            const is1x1 = COLS === 1 && ROWS === 1;
+            const cb = document.getElementById('grid1x1Eyedrop');
+            if (cb) cb.checked = is1x1;
+
+            if (originalImg) processSprites(originalImg);
+        }
+
+        function onGridChange() { onGridChangeFrom(window.innerWidth < 1024 ? 'mobile' : 'pc'); }
+
+        function onGrid1x1Change(cb) {
+            const colsPC   = document.getElementById('colsInput');
+            const rowsPC   = document.getElementById('rowsInput');
+            const colsMob  = document.getElementById('colsInputMobile');
+            const rowsMob  = document.getElementById('rowsInputMobile');
+            const colsED   = document.getElementById('colsInputEyedrop');
+            const rowsED   = document.getElementById('rowsInputEyedrop');
+            if (cb.checked) {
+                [colsPC, colsMob, colsED].forEach(el => el.value = 1);
+                [rowsPC, rowsMob, rowsED].forEach(el => el.value = 1);
+                COLS = 1; ROWS = 1;
+            } else {
+                // 1x1を解除したら6x5に戻す
+                [colsPC, colsMob, colsED].forEach(el => el.value = 6);
+                [rowsPC, rowsMob, rowsED].forEach(el => el.value = 5);
+                COLS = 6; ROWS = 5;
+            }
+            if (originalImg) processSprites(originalImg);
+        }
+
+        const imageInput = document.getElementById('imageInput');
+        const gridContainer = document.getElementById('grid-container');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const pCtxPC = previewCanvas.getContext('2d');
+        const previewCanvasMobile = document.getElementById('previewCanvasMobile');
+        const pCtxMobile = previewCanvasMobile.getContext('2d');
+        const previewArea = document.getElementById('previewArea');
+        const playerCanvas = document.getElementById('playerCanvas');
+        const pCtxPlayer = playerCanvas.getContext('2d');
+        const playerEl = document.getElementById('player');
+        const magnifier = document.getElementById('magnifier');
+        const magnifierCanvas = document.getElementById('magnifierCanvas');
+        const mCtx = magnifierCanvas.getContext('2d');
+        const dropOverlay = document.getElementById('drop-overlay');
+
+        const thresholdInput = document.getElementById('threshold');
+        const shrinkInput = document.getElementById('shrink');
+        const blurInput = document.getElementById('blur');
+        const outlineOpt = document.getElementById('outlineOpt');
+        const outlineWidthInput = document.getElementById('outlineWidth');
+        const outlineAlphaInput = document.getElementById('outlineAlpha');
+        const outlineColorMatchInput = document.getElementById('outlineColorMatch');
+        const outlineOffset = document.getElementById('outlineOffset');
+        const trimTopInput = document.getElementById('trimTop');
+        const trimBottomInput = document.getElementById('trimBottom');
+        const trimLeftInput = document.getElementById('trimLeft');
+        const trimRightInput = document.getElementById('trimRight');
+        const fpsInput = document.getElementById('fpsInput');
+        const fpsInputMobile = document.getElementById('fpsInputMobile');
+        const hsvOpt = document.getElementById('hsvOpt');
+        const hsvHueInput = document.getElementById('hsvHue');
+        const hsvHueRangeInput = document.getElementById('hsvHueRange');
+        const hsvSatInput = document.getElementById('hsvSat');
+        const hsvStrInput = document.getElementById('hsvStr');
+
+        const ranges = [
+            {in: thresholdInput, val: 'rangeVal1', f: v => v},
+            {in: shrinkInput, val: 'rangeVal2', f: v => parseFloat(v).toFixed(1)},
+            {in: blurInput, val: 'rangeVal3', f: v => parseFloat(v).toFixed(1)},
+            {in: outlineWidthInput, val: 'rangeValWidth', f: v => parseFloat(v).toFixed(1)},
+            {in: outlineAlphaInput, val: 'rangeValAlpha', f: v => parseFloat(v).toFixed(2)},
+            {in: outlineColorMatchInput, val: 'rangeValColorMatch', f: v => parseFloat(v).toFixed(2)},
+            {in: outlineOffset, val: 'rangeVal4', f: v => parseFloat(v).toFixed(1)},
+            {in: trimTopInput, val: 'rangeValTrimTop', f: v => v},
+            {in: trimBottomInput, val: 'rangeValTrimBottom', f: v => v},
+            {in: trimLeftInput, val: 'rangeValTrimLeft', f: v => v},
+            {in: trimRightInput, val: 'rangeValTrimRight', f: v => v},
+            {in: hsvHueInput, val: 'rangeValHue', f: v => v},
+            {in: hsvHueRangeInput, val: 'rangeValHueRange', f: v => v},
+            {in: hsvSatInput, val: 'rangeValSat', f: v => parseFloat(v).toFixed(2)},
+            {in: hsvStrInput, val: 'rangeValHsvStr', f: v => parseFloat(v).toFixed(2)},
+        ];
+        ranges.forEach(r => { r.in.oninput = () => { document.getElementById(r.val).innerText = r.f(r.in.value); }; });
+        hsvOpt.onchange = () => {
+            const sub = document.getElementById('hsvSubControl');
+            sub.classList.toggle('opacity-40', !hsvOpt.checked);
+            sub.classList.toggle('pointer-events-none', !hsvOpt.checked);
+        };
+        outlineOpt.onchange = () => {
+            const sub = document.getElementById('outlineSubControl');
+            sub.classList.toggle('opacity-40', !outlineOpt.checked);
+            sub.classList.toggle('pointer-events-none', !outlineOpt.checked);
+        };
+
+        // --- ドラッグ＆ドロップ機能 ---
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropOverlay.style.display = 'flex';
+        });
+        window.addEventListener('dragleave', (e) => {
+            if (e.relatedTarget === null) dropOverlay.style.display = 'none';
+        });
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropOverlay.style.display = 'none';
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // --- 📍 ピン機能 ---
+        function togglePin(el) { el.classList.toggle('pinned'); }
+
+        // --- 拡大鏡機能（中央表示） ---
+        previewArea.addEventListener('mouseenter', () => {
+            if (originalImg && window.innerWidth >= 1024) {
+                magnifier.style.display = 'block';
+            }
+        });
+        previewArea.addEventListener('mousemove', (e) => {
+            if (magnifier.style.display === 'block') {
+                magnifier.style.left = e.clientX + 'px';
+                magnifier.style.top = e.clientY + 'px';
+            }
+        });
+        previewArea.addEventListener('mouseleave', () => {
+            magnifier.style.display = 'none';
+        });
+
+        function bringToFront(el) {
+            if (window.innerWidth < 1024 || el.classList.contains('pinned')) return;
+            document.querySelectorAll('.draggable-box:not(.pinned)').forEach(box => box.style.zIndex = 10);
+            el.style.zIndex = 100;
+        }
+        function makeMovableAndResizable(el) {
+            const handles = el.querySelectorAll('.drag-handle');
+            let startX, startY, startW, startH, startLeft, startTop;
+            handles.forEach(handle => {
+                handle.addEventListener('mousedown', (e) => {
+                    if (window.innerWidth < 1024 || e.target.classList.contains('pin-btn')) return;
+                    e.preventDefault(); bringToFront(el);
+                    startX = e.clientX; startY = e.clientY; startLeft = el.offsetLeft; startTop = el.offsetTop;
+                    document.onmousemove = (e) => { el.style.left = (startLeft + e.clientX - startX) + 'px'; el.style.top = (startTop + e.clientY - startY) + 'px'; el.style.right = 'auto'; };
+                    document.onmouseup = () => { document.onmousemove = null; document.onmouseup = null; };
+                });
+            });
+            const resizers = el.querySelectorAll('.resizer');
+            resizers.forEach(r => {
+                r.onmousedown = (e) => {
+                    if (window.innerWidth < 1024) return;
+                    e.preventDefault(); bringToFront(el);
+                    startX = e.clientX; startY = e.clientY; startW = el.offsetWidth; startH = el.offsetHeight;
+                    document.onmousemove = (e) => {
+                        const dx = e.clientX - startX; const dy = e.clientY - startY;
+                        if (r.classList.contains('resizer-rb')) { el.style.width = (startW + dx) + 'px'; el.style.height = (startH + dy) + 'px'; }
+                    };
+                    document.onmouseup = () => { document.onmousemove = null; document.onmouseup = null; };
+                };
+            });
+        }
+        document.querySelectorAll('.draggable-box').forEach(makeMovableAndResizable);
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    originalImg = img;
+                    SPRITE_W = Math.floor(img.width / COLS);
+                    SPRITE_H = Math.floor(img.height / ROWS);
+                    if(document.getElementById('previewPlaceholder')) document.getElementById('previewPlaceholder').style.display = 'none';
+                    processSprites(img);
+                    initEyedropper();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        imageInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+        function processSprites(img) {
+            SPRITE_W = Math.floor(img.width / COLS);
+            SPRITE_H = Math.floor(img.height / ROWS);
+            gridContainer.innerHTML = ''; spriteCanvases = [];
+            const temp = document.createElement('canvas'); temp.width = img.width; temp.height = img.height;
+            temp.getContext('2d').drawImage(img, 0, 0);
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const idx = (r * COLS) + c;
+                    const sCanvas = document.createElement('canvas'); sCanvas.width = SPRITE_W; sCanvas.height = SPRITE_H;
+                    sCanvas.getContext('2d').drawImage(temp, c * SPRITE_W, r * SPRITE_H, SPRITE_W, SPRITE_H, 0, 0, SPRITE_W, SPRITE_H);
+                    spriteCanvases.push(sCanvas);
+                    const card = document.createElement('div'); card.id = `sprite-${idx}`;
+                    card.className = "checkerboard p-1 rounded-lg cursor-pointer bg-white border border-slate-700 relative";
+                    card.style.aspectRatio = `${SPRITE_W}/${SPRITE_H}`;
+                    const thumb = document.createElement('canvas'); thumb.width = SPRITE_W; thumb.height = SPRITE_H;
+                    thumb.className = "w-full h-full object-contain rounded";
+                    thumb.getContext('2d').drawImage(sCanvas, 0, 0);
+                    card.onclick = () => toggleSelect(idx); card.appendChild(thumb);
+                    gridContainer.appendChild(card);
+                }
+            }
+            // canvasサイズ更新
+            previewCanvas.width = SPRITE_W; previewCanvas.height = SPRITE_H;
+            previewCanvasMobile.width = SPRITE_W; previewCanvasMobile.height = SPRITE_H;
+            playerCanvas.width = SPRITE_W; playerCanvas.height = SPRITE_H;
+            // トリムスライダー上限更新
+            const trimMax = Math.floor(Math.min(SPRITE_W, SPRITE_H) * 0.2);
+            [trimTopInput, trimBottomInput, trimLeftInput, trimRightInput].forEach(i => { i.max = trimMax; i.value = 0; });
+            ['rangeValTrimTop','rangeValTrimBottom','rangeValTrimLeft','rangeValTrimRight'].forEach(id => document.getElementById(id).innerText = 0);
+            selectedIndices = []; refreshSelectionUI();
+        }
+
+        function erodeAlpha(ctx, amount) {
+            const idata = ctx.getImageData(0, 0, SPRITE_W, SPRITE_H); const data = idata.data;
+            const steps = Math.ceil(amount);
+            for (let s = 0; s < steps; s++) {
+                const copy = new Uint8ClampedArray(data);
+                for (let y = 1; y < SPRITE_H - 1; y++) {
+                    for (let x = 1; x < SPRITE_W - 1; x++) {
+                        const i = (y * SPRITE_W + x) * 4;
+                        if (copy[i + 3] === 0) continue;
+                        const minA = Math.min(copy[((y - 1) * SPRITE_W + x) * 4 + 3], copy[((y + 1) * SPRITE_W + x) * 4 + 3], copy[(y * SPRITE_W + (x - 1)) * 4 + 3], copy[(y * SPRITE_W + (x + 1)) * 4 + 3]);
+                        if (minA < 255) data[i + 3] = Math.max(0, data[i + 3] - 128); 
+                    }
+                }
+            }
+            ctx.putImageData(idata, 0, 0);
+        }
+        function applyEdgeBlur(ctx, radius) {
+            const w = SPRITE_W, h = SPRITE_H;
+            const original = ctx.getImageData(0, 0, w, h);
+            const mask = new Uint8ClampedArray(w * h);
+            for (let y = 1; y < h - 1; y++) {
+                for (let x = 1; x < w - 1; x++) {
+                    const i = (y * w + x) * 4; if (original.data[i + 3] === 0) continue;
+                    const isEdge = [original.data[((y-1)*w+x)*4+3], original.data[((y+1)*w+x)*4+3], original.data[(y*w+(x-1))*4+3], original.data[(y*w+(x+1))*4+3]].some(na => na < 200);
+                    if (isEdge) mask[y * w + x] = 255;
+                }
+            }
+            // CSS filterを試みる（PC向け）
+            const temp = document.createElement('canvas'); temp.width = w; temp.height = h;
+            const tCtx = temp.getContext('2d');
+            let blurred = null;
+            try {
+                tCtx.filter = `blur(${radius}px)`;
+                tCtx.drawImage(ctx.canvas, 0, 0);
+                const test = tCtx.getImageData(0, 0, w, h);
+                // filterが効いてなければソフトウェアブラーへ
+                blurred = test;
+                let same = true;
+                for (let i = 0; i < Math.min(400, test.data.length); i += 4) {
+                    if (test.data[i] !== original.data[i] || test.data[i+3] !== original.data[i+3]) { same = false; break; }
+                }
+                if (same) blurred = null;
+            } catch(e) { blurred = null; }
+            // フォールバック：ソフトウェアガウスブラー（モバイル保証）
+            if (!blurred) blurred = softGaussBlur(original, w, h, Math.max(1, Math.round(radius)));
+            const result = ctx.getImageData(0, 0, w, h);
+            for (let i = 0; i < w * h; i++) {
+                if (mask[i] === 255) { const idx = i*4; result.data[idx]=blurred.data[idx]; result.data[idx+1]=blurred.data[idx+1]; result.data[idx+2]=blurred.data[idx+2]; result.data[idx+3]=blurred.data[idx+3]; }
+            }
+            ctx.putImageData(result, 0, 0);
+        }
+        function softGaussBlur(imageData, w, h, r) {
+            const src = imageData.data, out = new ImageData(w, h), dst = out.data;
+            const sz = r*2+1, sig = r/2||1;
+            const k = Array.from({length:sz}, (_,i) => { const x=i-r; return Math.exp(-(x*x)/(2*sig*sig)); });
+            const kh = r, tmp = new Float32Array(w*h*4);
+            for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+                let rv=0,gv=0,bv=0,av=0,ws=0;
+                for (let ki=0;ki<sz;ki++) { const nx=x+ki-kh; if(nx<0||nx>=w) continue; const idx=(y*w+nx)*4,kw=k[ki]; rv+=src[idx]*kw;gv+=src[idx+1]*kw;bv+=src[idx+2]*kw;av+=src[idx+3]*kw;ws+=kw; }
+                const oi=(y*w+x)*4; tmp[oi]=rv/ws;tmp[oi+1]=gv/ws;tmp[oi+2]=bv/ws;tmp[oi+3]=av/ws;
+            }
+            for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+                let rv=0,gv=0,bv=0,av=0,ws=0;
+                for (let ki=0;ki<sz;ki++) { const ny=y+ki-kh; if(ny<0||ny>=h) continue; const idx=(ny*w+x)*4,kw=k[ki]; rv+=tmp[idx]*kw;gv+=tmp[idx+1]*kw;bv+=tmp[idx+2]*kw;av+=tmp[idx+3]*kw;ws+=kw; }
+                const oi=(y*w+x)*4; dst[oi]=rv/ws;dst[oi+1]=gv/ws;dst[oi+2]=bv/ws;dst[oi+3]=av/ws;
+            }
+            return out;
+        }
+        function drawOutlineRefined(ctx, mainBuffer, width, offset, colorMatch, alpha) {
+            const w = SPRITE_W, h = SPRITE_H;
+            const mCtx = document.createElement('canvas').getContext('2d'); mCtx.canvas.width = w; mCtx.canvas.height = h; mCtx.drawImage(mainBuffer, 0, 0);
+            if (offset > 0) erodeAlpha(mCtx, offset * 2);
+            const maskData = mCtx.getImageData(0, 0, w, h).data;
+            const outImg = ctx.createImageData(w, h); const outData = outImg.data;
+            const range = Math.ceil(width + 1);
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const i = (y * w + x) * 4; if (maskData[i + 3] > 100) continue;
+                    let bestDistSq = Infinity, sampleColorIdx = -1;
+                    for (let dy = -range; dy <= range; dy++) {
+                        for (let dx = -range; dx <= range; dx++) {
+                            const nx = x + dx, ny = y + dy;
+                            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                                const nIdx = (ny * w + nx) * 4;
+                                if (maskData[nIdx + 3] > 150) { 
+                                    const d2 = dx*dx + dy*dy;
+                                    if (d2 <= width * width && d2 < bestDistSq) { bestDistSq = d2; sampleColorIdx = nIdx; }
+                                }
+                            }
+                        }
+                    }
+                    if (bestDistSq !== Infinity) {
+                        let r = 60, g = 60, b = 70;
+                        if (colorMatch > 0 && sampleColorIdx !== -1) {
+                            r = r * (1 - colorMatch/2) + (maskData[sampleColorIdx] * 0.7) * (colorMatch/2);
+                            g = g * (1 - colorMatch/2) + (maskData[sampleColorIdx+1] * 0.7) * (colorMatch/2);
+                            b = b * (1 - colorMatch/2) + (maskData[sampleColorIdx+2] * 0.7) * (colorMatch/2);
+                        }
+                        outData[i] = r; outData[i+1] = g; outData[i+2] = b; outData[i+3] = alpha * 255;
+                    }
+                }
+            }
+            const temp = document.createElement('canvas'); temp.width = w; temp.height = h;
+            temp.getContext('2d').putImageData(outImg, 0, 0); ctx.drawImage(temp, 0, 0);
+        }
+
+        // RGB→HSV変換ヘルパー
+        function rgbToHsv(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+            let h = 0, s = max === 0 ? 0 : d / max;
+            if (d !== 0) {
+                if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+                else if (max === g) h = ((b - r) / d + 2) / 6;
+                else h = ((r - g) / d + 4) / 6;
+            }
+            return { h: h * 360, s, v: max };
+        }
+
+        function applyEffects(sourceCanvas, frameIdx) {
+            const fidx = (frameIdx !== undefined) ? frameIdx : eyedropFrameIdx;
+            const tTop = parseInt(trimTopInput.value)||0, tBottom = parseInt(trimBottomInput.value)||0;
+            const tLeft = parseInt(trimLeftInput.value)||0, tRight = parseInt(trimRightInput.value)||0;
+            const out = document.createElement('canvas'); out.width = SPRITE_W; out.height = SPRITE_H;
+            const ctx = out.getContext('2d');
+            const buffer = document.createElement('canvas'); buffer.width = SPRITE_W; buffer.height = SPRITE_H;
+            const bCtx = buffer.getContext('2d');
+            const sw = Math.max(1, SPRITE_W - tLeft - tRight), sh = Math.max(1, SPRITE_H - tTop - tBottom);
+            bCtx.drawImage(sourceCanvas, tLeft, tTop, sw, sh, tLeft, tTop, sw, sh);
+            const threshold = parseInt(thresholdInput.value);
+            const useHsv = hsvOpt.checked;
+            const hueCenter = parseFloat(hsvHueInput.value);
+            const hueRange = parseFloat(hsvHueRangeInput.value);
+            const minSat = parseFloat(hsvSatInput.value);
+            const hsvStr = parseFloat(hsvStrInput.value);
+            const idata = bCtx.getImageData(0, 0, SPRITE_W, SPRITE_H);
+            const currentMask = (maskData && maskData[fidx]) || null;
+            for (let i = 0; i < idata.data.length; i += 4) {
+                const r = idata.data[i], g = idata.data[i+1], b = idata.data[i+2];
+                const pixelIdx = i / 4;
+                // 保護マスク最優先チェック：塗った部分は何があっても透過しない
+                if (currentMask && currentMask[pixelIdx]) {
+                    idata.data[i+3] = Math.max(idata.data[i+3], 255);
+                    continue;
+                }
+                if (Math.sqrt(r**2 + (g-255)**2 + b**2) < threshold || Math.sqrt((r-255)**2 + g**2 + (b-255)**2) < threshold) {
+                    idata.data[i+3] = 0; continue;
+                }
+                if (useHsv) {
+                    const hsv = rgbToHsv(r, g, b);
+                    let hueDiff = Math.abs(hsv.h - hueCenter);
+                    if (hueDiff > 180) hueDiff = 360 - hueDiff;
+                    if (hueDiff <= hueRange && hsv.s >= minSat) {
+                        idata.data[i+3] = Math.max(0, idata.data[i+3] - Math.round(hsvStr * 255));
+                    }
+                }
+                for (const ec of eyedropColors) {
+                    if (Math.abs(r-ec.r)+Math.abs(g-ec.g)+Math.abs(b-ec.b) < ec.tolerance*3) {
+                        idata.data[i+3] = 0; break;
+                    }
+                }
+            }
+            bCtx.putImageData(idata, 0, 0);
+            const shrink = parseFloat(shrinkInput.value); if (shrink > 0) erodeAlpha(bCtx, shrink);
+            ctx.drawImage(buffer, 0, 0);
+            const blur = parseFloat(blurInput.value); if (blur > 0) applyEdgeBlur(ctx, blur);
+            if (outlineOpt.checked) drawOutlineRefined(ctx, buffer, parseFloat(outlineWidthInput.value), parseFloat(outlineOffset.value), parseFloat(outlineColorMatchInput.value), parseFloat(outlineAlphaInput.value));
+            return out;
+        }
+
+        function toggleSelect(idx) {
+            const f = selectedIndices.indexOf(idx);
+            if (f > -1) selectedIndices.splice(f, 1); else selectedIndices.push(idx);
+            animationStep = 0; refreshSelectionUI();
+        }
+        function refreshSelectionUI() {
+            document.querySelectorAll('.selected-sprite').forEach(el => el.classList.remove('selected-sprite'));
+            document.querySelectorAll('.selection-number').forEach(el => el.remove());
+            selectedIndices.forEach((sIdx, i) => {
+                const el = document.getElementById(`sprite-${sIdx}`);
+                if (el) { el.classList.add('selected-sprite'); const n = document.createElement('div'); n.className = 'selection-number'; n.innerText = i + 1; el.appendChild(n); }
+            });
+            document.getElementById('selectionInfo').innerText = `${selectedIndices.length} frames`;
+        }
+
+        function saveAction() {
+            if (spriteCanvases.length === 0) return;
+            const idx = selectedIndices.length > 0 ? selectedIndices[(animationStep - 1 + selectedIndices.length) % selectedIndices.length] : 0;
+            const finalCanvas = applyEffects(spriteCanvases[idx]);
+            const link = document.createElement('a'); link.download = `sprite_${idx}.png`; link.href = finalCanvas.toDataURL("image/png"); link.click();
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-edit').classList.toggle('hidden', tab !== 'edit');
+            document.getElementById('view-test').classList.toggle('hidden', tab !== 'test');
+            document.getElementById('view-eyedrop').classList.toggle('hidden', tab !== 'eyedrop');
+            ['edit','test','eyedrop'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (btn) btn.className = `px-4 py-1.5 rounded-lg font-bold transition text-sm ${tab===t ? 'tab-active' : 'text-slate-500'}`;
+            });
+            if (tab === 'eyedrop' && spriteCanvases.length > 0) setTimeout(() => refreshEyedropCanvas(), 50);
+        }
+
+        function toggleRecommendPreset() {
+            const btn = document.getElementById('btn-recommend');
+            if (!isRecommendActive) {
+                previousSettings = { threshold: thresholdInput.value, shrink: shrinkInput.value, blur: blurInput.value, outline: outlineOpt.checked, width: outlineWidthInput.value, alpha: outlineAlphaInput.value, match: outlineColorMatchInput.value, offset: outlineOffset.value };
+                
+                // オススメ設定の反映
+                thresholdInput.value = 150; 
+                shrinkInput.value = 0.5; // 指示通り0.5
+                blurInput.value = 0.0; 
+                outlineOpt.checked = true; 
+                outlineWidthInput.value = 3.0; // 指示通り3.0
+                outlineAlphaInput.value = 1.0; // 指示通り最大
+                outlineColorMatchInput.value = 2.0; // 指示通り最大
+                outlineOffset.value = 0.8; // 指示通り0.8
+                
+                btn.className = "bg-gradient-to-r from-amber-500 to-orange-600 text-white text-[9px] font-bold px-3 py-1 rounded-full shadow-lg"; 
+                isRecommendActive = true;
+            } else {
+                if (previousSettings) { thresholdInput.value = previousSettings.threshold; shrinkInput.value = previousSettings.shrink; blurInput.value = previousSettings.blur; outlineOpt.checked = previousSettings.outline; outlineWidthInput.value = previousSettings.width; outlineAlphaInput.value = previousSettings.alpha; outlineColorMatchInput.value = previousSettings.match; outlineOffset.value = previousSettings.offset; }
+                btn.className = "bg-slate-700 text-slate-400 text-[9px] font-bold px-3 py-1 rounded-full shadow transition-all"; isRecommendActive = false;
+            }
+            outlineOpt.dispatchEvent(new Event('change')); ranges.forEach(r => r.in.dispatchEvent(new Event('input')));
+        }
+
+        function loop(timestamp) {
+            const fps = window.innerWidth < 1024 ? (parseInt(fpsInputMobile.value) || 5) : (parseInt(fpsInput.value) || 5);
+            const interval = 1000 / fps;
+            if (timestamp - lastTimestamp > interval) {
+                pCtxPC.clearRect(0, 0, SPRITE_W, SPRITE_H); pCtxMobile.clearRect(0, 0, SPRITE_W, SPRITE_H); pCtxPlayer.clearRect(0, 0, SPRITE_W, SPRITE_H);
+                let idx = (selectedIndices.length > 0) ? selectedIndices[animationStep % selectedIndices.length] : 0;
+                if(spriteCanvases[idx]) {
+                    const proc = applyEffects(spriteCanvases[idx]);
+                    pCtxPC.drawImage(proc, 0, 0); pCtxMobile.drawImage(proc, 0, 0); pCtxPlayer.drawImage(proc, 0, 0);
+                    if (magnifier.style.display === 'block') {
+                        mCtx.clearRect(0, 0, 340, 408);
+                        mCtx.drawImage(proc, 0, 0, SPRITE_W, SPRITE_H, 0, 0, 340, 408);
+                    }
+                }
+                if(isPlaying && selectedIndices.length > 0) animationStep++;
+                lastTimestamp = timestamp;
+            }
+            if(keys['w'] || keys['ArrowUp']) playerPos.y -= 4;
+            if(keys['s'] || keys['ArrowDown']) playerPos.y += 4;
+            if(keys['a'] || keys['ArrowLeft']) { playerPos.x -= 4; playerEl.style.transform = "translate(-50%, -100%) scaleX(-1)"; }
+            if(keys['d'] || keys['ArrowRight']) { playerPos.x += 4; playerEl.style.transform = "translate(-50%, -100%) scaleX(1)"; }
+            const arena = document.getElementById('test-arena');
+            if(arena && arena.offsetWidth > 0) {
+                const rect = arena.getBoundingClientRect();
+                playerPos.x = Math.max(30, Math.min(rect.width - 30, playerPos.x));
+                playerPos.y = Math.max(60, Math.min(rect.height - 20, playerPos.y));
+                playerEl.style.left = playerPos.x + 'px'; playerEl.style.top = playerPos.y + 'px';
+            }
+            requestAnimationFrame(loop);
+        }
+
+        const setupDPad = (id, key) => { const btn = document.getElementById(id); btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; }); btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; }); };
+        setupDPad('btn-up', 'ArrowUp'); setupDPad('btn-down', 'ArrowDown'); setupDPad('btn-left', 'ArrowLeft'); setupDPad('btn-right', 'ArrowRight');
+
+        document.getElementById('clearSelection').onclick = () => { selectedIndices = []; animationStep = 0; refreshSelectionUI(); };
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+        requestAnimationFrame(loop);
+
+        // =============================
+        // 🩸 スポイト＋🟢 保護ブラシ機能
+        // =============================
+        let eyedropMode = 'eyedrop'; // 'eyedrop' | 'brush' | 'erase'
+        let maskData = []; // フレームごとの保護マスク Uint8Array
+        let isBrushDown = false;
+
+        document.getElementById('brushSize').oninput = function() {
+            document.getElementById('brushSizeVal').textContent = this.value;
+        };
+
+        function setEyedropMode(mode) {
+            eyedropMode = mode;
+            const styles = { eyedrop: 'bg-amber-500 text-white', brush: 'bg-emerald-600 text-white', erase: 'bg-slate-500 text-white' };
+            ['eyedrop','brush','erase'].forEach(m => {
+                const btn = document.getElementById(`mode-${m}-btn`);
+                if (btn) btn.className = `px-3 py-1 rounded-lg text-[10px] font-bold transition ${m===mode ? styles[m] : 'text-slate-400'}`;
+            });
+            document.getElementById('tol-wrap').classList.toggle('hidden', mode !== 'eyedrop');
+            document.getElementById('brush-wrap').classList.toggle('hidden', mode === 'eyedrop');
+            const mc = document.getElementById('mask-canvas');
+            if (mc) mc.style.cursor = mode === 'eyedrop' ? 'crosshair' : 'cell';
+        }
+
+        function initEyedropper() {
+            eyedropColors = []; eyedropHistory = []; eyedropFrameIdx = 0;
+            maskData = spriteCanvases.map(() => new Uint8Array(SPRITE_W * SPRITE_H));
+            const sel = document.getElementById('eyedrop-frame-select');
+            sel.innerHTML = '';
+            for (let i = 0; i < spriteCanvases.length; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = i + 1;
+                btn.className = `px-2 py-0.5 rounded text-[10px] font-bold border transition ${i===0?'bg-amber-500 border-amber-400 text-white':'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'}`;
+                btn.id = `eyedrop-fbtn-${i}`;
+                btn.onclick = () => selectEyedropFrame(i);
+                sel.appendChild(btn);
+            }
+            const empty = document.getElementById('eyedrop-empty');
+            if (empty) empty.style.display = spriteCanvases.length > 0 ? 'none' : 'flex';
+            updateEyedropColorList();
+            setEyedropMode('eyedrop');
+            setTimeout(() => refreshEyedropCanvas(), 50);
+        }
+
+        function selectEyedropFrame(idx) {
+            eyedropFrameIdx = idx;
+            for (let i = 0; i < spriteCanvases.length; i++) {
+                const btn = document.getElementById(`eyedrop-fbtn-${i}`);
+                if (btn) btn.className = `px-2 py-0.5 rounded text-[10px] font-bold border transition ${i===idx?'bg-amber-500 border-amber-400 text-white':'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'}`;
+            }
+            refreshEyedropCanvas();
+        }
+
+        function refreshEyedropCanvas() {
+            if (!spriteCanvases[eyedropFrameIdx]) return;
+            const ec = document.getElementById('eyedropper-canvas');
+            const mc = document.getElementById('mask-canvas');
+            const wrap = document.getElementById('eyedrop-canvas-wrap');
+            ec.width = SPRITE_W; ec.height = SPRITE_H;
+            mc.width = SPRITE_W; mc.height = SPRITE_H;
+            // wrapの実サイズに合わせてスケール計算
+            const wrapW = wrap.clientWidth || wrap.offsetWidth || 300;
+            const wrapH = wrap.clientHeight || wrap.offsetHeight || 300;
+            const scale = Math.min((wrapW - 4) / SPRITE_W, (wrapH - 4) / SPRITE_H, 6);
+            const sw = Math.floor(SPRITE_W * scale) + 'px';
+            const sh = Math.floor(SPRITE_H * scale) + 'px';
+            ec.style.width = sw; ec.style.height = sh;
+            mc.style.width = sw; mc.style.height = sh;
+            ec.getContext('2d').drawImage(applyEffects(spriteCanvases[eyedropFrameIdx]), 0, 0);
+            drawMaskOverlay();
+        }
+
+        function drawMaskOverlay() {
+            const mc = document.getElementById('mask-canvas');
+            if (!mc) return;
+            const ctx = mc.getContext('2d');
+            ctx.clearRect(0, 0, mc.width, mc.height);
+            const mask = maskData[eyedropFrameIdx];
+            if (!mask) return;
+            // maskデータ → オフスクリーンに不透明で描画 → 半透明で一発合成
+            const offscreen = document.createElement('canvas');
+            offscreen.width = SPRITE_W; offscreen.height = SPRITE_H;
+            const offCtx = offscreen.getContext('2d');
+            const imgData = offCtx.createImageData(SPRITE_W, SPRITE_H);
+            for (let i = 0; i < mask.length; i++) {
+                if (mask[i]) {
+                    imgData.data[i*4]   = 0;
+                    imgData.data[i*4+1] = 210;
+                    imgData.data[i*4+2] = 70;
+                    imgData.data[i*4+3] = 255;
+                }
+            }
+            offCtx.putImageData(imgData, 0, 0);
+            ctx.save();
+            ctx.globalAlpha = 0.45;
+            ctx.drawImage(offscreen, 0, 0, mc.width, mc.height);
+            ctx.restore();
+        }
+
+        function getMaskPos(e) {
+            const mc = document.getElementById('mask-canvas');
+            const rect = mc.getBoundingClientRect();
+            const scX = SPRITE_W / rect.width, scY = SPRITE_H / rect.height;
+            let cx, cy;
+            if (e.touches) { cx=(e.touches[0].clientX-rect.left)*scX; cy=(e.touches[0].clientY-rect.top)*scY; }
+            else { cx=(e.clientX-rect.left)*scX; cy=(e.clientY-rect.top)*scY; }
+            return { x: Math.floor(cx), y: Math.floor(cy) };
+        }
+
+        // maskデータを更新してdrawMaskOverlayで再描画（常にこれだけ呼ぶゆ）
+        function paintMask(x, y, protect, skipRedraw) {
+            if (!maskData[eyedropFrameIdx]) return;
+            const mask = maskData[eyedropFrameIdx];
+            const r = parseInt(document.getElementById('brushSize').value) || 5;
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (dx*dx + dy*dy > r*r) continue;
+                    const nx = x+dx, ny = y+dy;
+                    if (nx<0||ny<0||nx>=SPRITE_W||ny>=SPRITE_H) continue;
+                    mask[ny*SPRITE_W+nx] = protect ? 1 : 0;
+                }
+            }
+            if (!skipRedraw) {
+                drawMaskOverlay();
+                const ec = document.getElementById('eyedropper-canvas');
+                if (ec.width && spriteCanvases[eyedropFrameIdx]) {
+                    ec.getContext('2d').drawImage(applyEffects(spriteCanvases[eyedropFrameIdx], eyedropFrameIdx), 0, 0);
+                }
+            }
+        }
+
+        function clearMask() {
+            if (maskData[eyedropFrameIdx]) {
+                maskData[eyedropFrameIdx] = new Uint8Array(SPRITE_W * SPRITE_H);
+                drawMaskOverlay();
+            }
+        }
+
+        // マスクキャンバスのイベント
+        const maskCanvasEl = document.getElementById('mask-canvas');
+        let lastBrushX = null, lastBrushY = null;
+
+        // ブレゼンハム線分補間でmaskデータを埋めて、最後に一回だけ再描画するゆ
+        function paintMaskLine(x0, y0, x1, y1, protect) {
+            if (!maskData[eyedropFrameIdx]) return;
+            const mask = maskData[eyedropFrameIdx];
+            const r = parseInt(document.getElementById('brushSize').value) || 5;
+            const absDx = Math.abs(x1-x0), absDy = Math.abs(y1-y0);
+            const sx = x0<x1?1:-1, sy = y0<y1?1:-1;
+            let err = absDx-absDy, x=x0, y=y0;
+            while(true) {
+                // この点を中心に円形にmaskデータを更新
+                for (let dy=-r; dy<=r; dy++) for (let dx=-r; dx<=r; dx++) {
+                    if (dx*dx+dy*dy>r*r) continue;
+                    const nx=x+dx, ny=y+dy;
+                    if (nx>=0&&ny>=0&&nx<SPRITE_W&&ny<SPRITE_H) mask[ny*SPRITE_W+nx] = protect?1:0;
+                }
+                if (x===x1 && y===y1) break;
+                const e2 = 2*err;
+                if (e2>-absDy) { err-=absDy; x+=sx; }
+                if (e2< absDx) { err+=absDx; y+=sy; }
+            }
+            // 最後に一回だけ再描画
+            drawMaskOverlay();
+            const ec = document.getElementById('eyedropper-canvas');
+            if (ec.width && spriteCanvases[eyedropFrameIdx]) {
+                ec.getContext('2d').drawImage(applyEffects(spriteCanvases[eyedropFrameIdx], eyedropFrameIdx), 0, 0);
+            }
+        }
+
+        function handleMaskAction(clientX, clientY, isRelease, isStart) {
+            if (eyedropMode === 'eyedrop') {
+                if (!isRelease) return;
+                const ec = document.getElementById('eyedropper-canvas');
+                const rect = ec.getBoundingClientRect();
+                const x = Math.floor((clientX-rect.left) * SPRITE_W/rect.width);
+                const y = Math.floor((clientY-rect.top)  * SPRITE_H/rect.height);
+                doEyedropAt(x, y);
+            } else {
+                const mc = document.getElementById('mask-canvas');
+                const rect = mc.getBoundingClientRect();
+                const x = Math.floor((clientX-rect.left) * SPRITE_W/rect.width);
+                const y = Math.floor((clientY-rect.top)  * SPRITE_H/rect.height);
+                const protect = eyedropMode === 'brush';
+                if (isStart || lastBrushX === null) {
+                    paintMask(x, y, protect);
+                } else {
+                    paintMaskLine(lastBrushX, lastBrushY, x, y, protect);
+                }
+                lastBrushX = x; lastBrushY = y;
+            }
+        }
+
+        maskCanvasEl.addEventListener('mousedown', e => { isBrushDown=true; lastBrushX=null; handleMaskAction(e.clientX, e.clientY, false, true); });
+        maskCanvasEl.addEventListener('mousemove', e => { if(isBrushDown && eyedropMode!=='eyedrop') handleMaskAction(e.clientX, e.clientY, false, false); });
+        maskCanvasEl.addEventListener('mouseup',   e => { isBrushDown=false; lastBrushX=null; if(eyedropMode==='eyedrop') handleMaskAction(e.clientX, e.clientY, true, false); });
+        maskCanvasEl.addEventListener('mouseleave',() => { isBrushDown=false; lastBrushX=null; document.getElementById('eyedropper-loupe').style.display='none'; });
+
+        maskCanvasEl.addEventListener('touchstart', e => { e.preventDefault(); isBrushDown=true; lastBrushX=null; handleMaskAction(e.touches[0].clientX, e.touches[0].clientY, false, true); }, {passive:false});
+        maskCanvasEl.addEventListener('touchmove',  e => { e.preventDefault(); if(eyedropMode!=='eyedrop') handleMaskAction(e.touches[0].clientX, e.touches[0].clientY, false, false); }, {passive:false});
+        maskCanvasEl.addEventListener('touchend',   e => { e.preventDefault(); isBrushDown=false; lastBrushX=null; if(eyedropMode==='eyedrop') handleMaskAction(e.changedTouches[0].clientX, e.changedTouches[0].clientY, true, false); }, {passive:false});
+
+        // PC用ルーペ（スマホでは非表示）
+        maskCanvasEl.addEventListener('mousemove', e => {
+            if (window.innerWidth < 1024 || !spriteCanvases[eyedropFrameIdx]) return;
+            const loupe = document.getElementById('eyedropper-loupe');
+            loupe.style.display = 'block';
+            loupe.style.left = Math.min(e.clientX+30, window.innerWidth-130)+'px';
+            loupe.style.top  = Math.max(e.clientY-70, 10)+'px';
+            const ec = document.getElementById('eyedropper-canvas');
+            const rect = ec.getBoundingClientRect();
+            const x = Math.floor((e.clientX-rect.left)*SPRITE_W/rect.width);
+            const y = Math.floor((e.clientY-rect.top) *SPRITE_H/rect.height);
+            const lc = document.getElementById('loupeCanvas').getContext('2d');
+            lc.clearRect(0,0,120,120); lc.imageSmoothingEnabled=false;
+            lc.drawImage(ec, Math.max(0,x-2), Math.max(0,y-2), 5, 5, 0, 0, 120, 120);
+            lc.strokeStyle='#f59e0b'; lc.lineWidth=1.5;
+            lc.beginPath(); lc.moveTo(60,0); lc.lineTo(60,120); lc.moveTo(0,60); lc.lineTo(120,60); lc.stroke();
+        });
+
+        function doEyedropAt(x, y) {
+            if (x<0||y<0||x>=SPRITE_W||y>=SPRITE_H) return;
+            const pixel = document.getElementById('eyedropper-canvas').getContext('2d').getImageData(x,y,1,1).data;
+            if (pixel[3]===0) return;
+            const tol = parseInt(document.getElementById('eyedropTolerance').value)||30;
+            const color = {r:pixel[0], g:pixel[1], b:pixel[2], tolerance:tol};
+            if (eyedropColors.some(c => Math.abs(c.r-color.r)+Math.abs(c.g-color.g)+Math.abs(c.b-color.b)<15)) return;
+            eyedropHistory.push([...eyedropColors]);
+            eyedropColors.push(color);
+            updateEyedropColorList();
+            refreshEyedropCanvas();
+        }
+
+        function updateEyedropColorList() {
+            const list = document.getElementById('eyedrop-color-list');
+            const empty = document.getElementById('eyedrop-color-empty');
+            list.querySelectorAll('.ed-item').forEach(e => e.remove());
+            empty.style.display = eyedropColors.length===0 ? 'block' : 'none';
+            eyedropColors.forEach((c,i) => {
+                const row = document.createElement('div');
+                row.className = 'ed-item flex items-center gap-2 bg-slate-700/50 rounded-lg px-2 py-1';
+                const sw = document.createElement('div');
+                sw.style.cssText = `width:22px;height:22px;border-radius:5px;border:2px solid #475569;flex-shrink:0;background:rgb(${c.r},${c.g},${c.b})`;
+                const lbl = document.createElement('span');
+                lbl.className = 'text-[9px] text-slate-300 flex-grow leading-tight';
+                lbl.textContent = `${c.r},${c.g},${c.b} ±${c.tolerance}`;
+                const del = document.createElement('button');
+                del.textContent = '✕'; del.className = 'text-slate-500 hover:text-rose-400 text-[10px] font-bold flex-shrink-0';
+                del.onclick = () => { eyedropColors.splice(i,1); updateEyedropColorList(); refreshEyedropCanvas(); };
+                row.append(sw, lbl, del); list.appendChild(row);
+            });
+        }
+
+        function undoEyedrop() {
+            if (!eyedropHistory.length) return;
+            eyedropColors = eyedropHistory.pop();
+            updateEyedropColorList(); refreshEyedropCanvas();
+        }
+        function resetEyedrop() {
+            eyedropHistory.push([...eyedropColors]);
+            eyedropColors = []; updateEyedropColorList(); refreshEyedropCanvas();
+        }
+        function confirmEyedrop() {
+            alert(`✅ ${eyedropColors.length}色を登録したゆ！\nEditorとTest Runに反映されてるゆ🥹`);
+        }
+
+        // ぴったり切り出し保存
+        function saveTrimmed() {
+            if (!spriteCanvases[eyedropFrameIdx]) { alert('画像を読み込んでゆ🥺'); return; }
+            const src = applyEffects(spriteCanvases[eyedropFrameIdx]);
+            const ctx = src.getContext('2d');
+            const data = ctx.getImageData(0, 0, SPRITE_W, SPRITE_H).data;
+            let minX=SPRITE_W, minY=SPRITE_H, maxX=0, maxY=0, found=false;
+            for (let y=0; y<SPRITE_H; y++) {
+                for (let x=0; x<SPRITE_W; x++) {
+                    const a = data[(y*SPRITE_W+x)*4+3];
+                    if (a>0) { minX=Math.min(minX,x); minY=Math.min(minY,y); maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); found=true; }
+                }
+            }
+            if (!found) { alert('透明じゃない部分がないゆ🥺'); return; }
+            const w = maxX-minX+1, h = maxY-minY+1;
+            const out = document.createElement('canvas'); out.width=w; out.height=h;
+            out.getContext('2d').drawImage(src, minX, minY, w, h, 0, 0, w, h);
+            const link = document.createElement('a');
+            link.download = `sprite_${eyedropFrameIdx}_trimmed.png`;
+            link.href = out.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
