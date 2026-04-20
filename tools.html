@@ -44,39 +44,59 @@
         }
         #ptr-indicator {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 28px;
+            height: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 0;
-            overflow: hidden;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: height 0.2s ease;
             z-index: 9999;
-            border-radius: 0 0 16px 16px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
         }
         #ptr-indicator.visible {
-            height: 48px;
-        }
-        #ptr-spinner {
-            width: 22px;
-            height: 22px;
-            border: 2.5px solid rgba(255,255,255,0.35);
-            border-top-color: white;
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.15s;
-        }
-        #ptr-indicator.visible #ptr-spinner {
             opacity: 1;
         }
-        #ptr-spinner.spin {
-            animation: spin 0.7s linear infinite;
+        /* iOS風 放射状スピナー */
+        #ptr-spinner {
+            width: 28px;
+            height: 28px;
+            position: relative;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        #ptr-spinner .blade {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2.5px;
+            height: 7px;
+            margin-left: -1.25px;
+            margin-top: -12px;
+            border-radius: 2px;
+            background: #aaa;
+            transform-origin: 50% 12px;
+            opacity: 0.15;
+        }
+        #ptr-spinner.spin .blade {
+            animation: blade-fade 0.8s linear infinite;
+        }
+        #ptr-spinner .blade:nth-child(1)  { transform: rotate(0deg);    animation-delay: 0s; }
+        #ptr-spinner .blade:nth-child(2)  { transform: rotate(30deg);   animation-delay: -0.733s; }
+        #ptr-spinner .blade:nth-child(3)  { transform: rotate(60deg);   animation-delay: -0.667s; }
+        #ptr-spinner .blade:nth-child(4)  { transform: rotate(90deg);   animation-delay: -0.600s; }
+        #ptr-spinner .blade:nth-child(5)  { transform: rotate(120deg);  animation-delay: -0.533s; }
+        #ptr-spinner .blade:nth-child(6)  { transform: rotate(150deg);  animation-delay: -0.467s; }
+        #ptr-spinner .blade:nth-child(7)  { transform: rotate(180deg);  animation-delay: -0.400s; }
+        #ptr-spinner .blade:nth-child(8)  { transform: rotate(210deg);  animation-delay: -0.333s; }
+        #ptr-spinner .blade:nth-child(9)  { transform: rotate(240deg);  animation-delay: -0.267s; }
+        #ptr-spinner .blade:nth-child(10) { transform: rotate(270deg);  animation-delay: -0.200s; }
+        #ptr-spinner .blade:nth-child(11) { transform: rotate(300deg);  animation-delay: -0.133s; }
+        #ptr-spinner .blade:nth-child(12) { transform: rotate(330deg);  animation-delay: -0.067s; }
+        @keyframes blade-fade {
+            0%   { opacity: 1; }
+            100% { opacity: 0.15; }
         }
     </style>
 </head>
@@ -84,7 +104,12 @@
 
     <!-- Pull to Refresh インジケーター -->
     <div id="ptr-indicator">
-        <div id="ptr-spinner"></div>
+        <div id="ptr-spinner">
+            <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+            <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+            <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+            <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+        </div>
     </div>
 
     <div class="max-w-3xl mx-auto">
