@@ -4,7 +4,7 @@
 https://sikaikzari.github.io/test/spritestudio3.html
 
 #Image Mind Map Tool Pro
-https://sikaikzari.github.io/test/mindmap.html
+https://sikaikzari.github.io/test/mindmap2.html
 
 植物のやつの説明
 
