@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LYRIC SENDER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@300;400;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #2a2a3a;
+    --accent: #e8ff47;
+    --accent2: #ff4778;
+    --accent3: #47c8ff;
+    --text: #f0f0f0;
+    --muted: #555566;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== TAB BAR ===== */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .tab {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.15em;
+    padding: 14px 28px;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ===== SCREENS ===== */
+  .screen { display: none; flex: 1; overflow-y: auto; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ===== SETLIST SCREEN ===== */
+  #screen-setlist {
+    padding: 28px 20px;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    width: 100%;
+    max-width: 600px;
+  }
+
+  .new-song-box {
+    width: 100%;
+    max-width: 600px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  input[type=text] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type=text]:focus { border-color: var(--accent); }
+  input[type=text]::placeholder { color: var(--muted); }
+
+  textarea.lyrics-ta {
+    width: 100%;
+    height: 160px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    line-height: 1.8;
+    padding: 12px 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  textarea.lyrics-ta:focus { border-color: var(--accent); }
+  textarea.lyrics-ta::placeholder { color: var(--muted); }
+
+  .add-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.12em;
+    padding: 10px 22px;
+    cursor: pointer;
+    border-radius: 2px;
+    white-space: nowrap;
+    transition: transform 0.1s;
+    flex-shrink: 0;
+  }
+
+  .add-btn:hover { transform: translateY(-1px); }
+  .add-btn:active { transform: scale(0.97); }
+
+  /* 曲リスト */
+  .song-list {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .song-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.2s;
+    cursor: pointer;
+  }
+
+  .song-item:hover { border-color: var(--accent3); }
+  .song-item.selected { border-color: var(--accent); background: rgba(232,255,71,0.04); }
+
+  .song-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--muted);
+    width: 24px;
+    flex-shrink: 0;
+  }
+
+  .song-name {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 400;
+  }
+
+  .song-lines {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+
+  .del-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .del-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .empty-hint {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+    padding: 24px 0;
+  }
+
+  /* ===== PLAY SCREEN (SETUP) ===== */
+  #screen-play {
+    align-items: center;
+    justify-content: center;
+    padding: 28px 20px;
+    gap: 20px;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(44px, 11vw, 96px);
+    letter-spacing: 0.04em;
+    line-height: 0.88;
+    text-align: center;
+  }
+
+  .logo .l1 { color: var(--accent); text-shadow: 0 0 40px rgba(232,255,71,0.3); display: block; }
+  .logo .l2 { color: var(--accent2); text-shadow: 0 0 40px rgba(255,71,120,0.3); display: block; }
+
+  /* 歌詞プレビューエリア */
+  .lyrics-preview {
+    width: 100%;
+    max-width: 600px;
+  }
+
+  textarea.lyrics-ta {
+    width: 100%;
+    height: 180px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    line-height: 1.8;
+    padding: 14px 16px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  textarea.lyrics-ta:focus { border-color: var(--accent); }
+  textarea.lyrics-ta::placeholder { color: var(--muted); }
+
+  .select-row {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  select {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 15px;
+    padding: 12px 14px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23555566' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+
+  select:focus { border-color: var(--accent); }
+  select option { background: var(--surface); }
+
+  .sliders {
+    width: 100%;
+    max-width: 600px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sliders-title {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .slider-row { display: flex; align-items: center; gap: 14px; }
+
+  .slider-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    width: 46px;
+    flex-shrink: 0;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(232,255,71,0.4);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+
+  .slider-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    color: var(--accent);
+    width: 42px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .remote-hint {
+    width: 100%;
+    max-width: 600px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-align: center;
+    line-height: 2;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    background: var(--surface);
+  }
+
+  .remote-hint b { color: #6677cc; font-weight: 400; }
+
+  .start-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.15em;
+    padding: 16px 72px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+
+  .start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(232,255,71,0.25); }
+  .start-btn:active { transform: translateY(0); }
+  .start-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+  /* ===== PROMPTER ===== */
+  #prompter {
+    display: none;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--bg);
+  }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .song-title-badge {
+    position: absolute;
+    top: 18px; left: 22px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lines-container {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .lyric-line {
+    width: 100%;
+    text-align: center;
+    padding: 8px 0;
+    font-size: clamp(14px, 3vw, 20px);
+    line-height: 1.6;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+  }
+
+  .lyric-line.past { color: var(--muted); font-size: clamp(12px, 2vw, 14px); opacity: 0.35; }
+
+  .lyric-line.current {
+    color: var(--accent);
+    font-size: clamp(22px, 5vw, 38px);
+    font-weight: 700;
+    text-shadow: 0 0 30px rgba(232,255,71,0.4);
+    padding: 20px 0;
+  }
+
+  .lyric-line.current::after {
+    content: '';
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    bottom: 6px;
+    width: 50px; height: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .lyric-line.next { color: #8888aa; font-size: clamp(15px, 2.5vw, 18px); opacity: 0.65; }
+  .lyric-line.future { color: var(--muted); font-size: clamp(11px, 1.8vw, 13px); opacity: 0.2; }
+
+  .counter {
+    position: absolute;
+    top: 18px; right: 22px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+
+  .counter .cur { color: var(--accent); font-size: 20px; }
+
+  .control-bar {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .next-btn {
+    flex: 1;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.15em;
+    padding: 16px 0;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.08s, background 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .next-btn:active { transform: scale(0.97); background: #cfea30; }
+  .next-btn.flash { background: var(--accent2); color: #fff; }
+
+  .sub-btns { display: flex; gap: 8px; }
+
+  .sub-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+  }
+
+  .sub-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .key-hint { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; white-space: nowrap; }
+
+  .tap-hint {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .stage { cursor: pointer; }
+    display: none;
+    position: absolute; inset: 0;
+    background: rgba(10,10,15,0.92);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    z-index: 10;
+  }
+
+  .done-overlay.show { display: flex; }
+
+  .done-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 80px;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(232,255,71,0.5);
+    animation: pulse 1.2s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.6; transform: scale(0.98); }
+    to   { opacity: 1;   transform: scale(1.01); }
+  }
+
+  .restart-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 0.15em;
+    padding: 14px 44px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s;
+  }
+
+  .restart-btn:hover { background: rgba(232,255,71,0.1); }
+</style>
+</head>
+<body>
+
+<!-- タブバー -->
+<div class="tab-bar" id="tabBar">
+  <div class="tab active" onclick="switchTab('play')">▶ PLAY</div>
+  <div class="tab" onclick="switchTab('setlist')">♪ SETLIST</div>
+</div>
+
+<!-- PLAY タブ -->
+<div class="screen active" id="screen-play">
+  <div class="logo">
+    <span class="l1">LYRIC</span>
+    <span class="l2">SENDER</span>
+  </div>
+
+  <!-- 曲選択 -->
+  <div class="select-row" id="modeSelect">
+    <select id="songSelect">
+      <option value="">— 曲を選ぶ —</option>
+    </select>
+  </div>
+
+  <!-- 歌詞プレビュー -->
+  <div class="lyrics-preview">
+    <textarea class="lyrics-ta" id="pasteInput" placeholder="曲を選ぶと歌詞がここに入るゆ🥺&#10;&#10;直接ここに入力してもOK"></textarea>
+  </div>
+
+  <button class="start-btn" id="startBtn" onclick="startPrompter()" disabled>▶ START</button>
+
+  <div class="remote-hint">
+    📱 <b>画面タップ</b> で次へ進むゆ🥺<br>
+    🎛 <b>Space / Enter / → / PageDown</b> — キーボード・Bluetoothリモコン対応<br>
+    <span style="font-size:10px; color:var(--muted);">プレゼン用リモコンやBTシャッターリモコンをSpaceキー割り当てで使えるゆ✨</span>
+  </div>
+
+  <div class="sliders">
+    <div class="sliders-title">Voice Settings</div>
+    <div class="slider-row">
+      <div class="slider-label">Pitch</div>
+      <input type="range" id="pitchSlider" min="0.1" max="2.0" step="0.05" value="0.8">
+      <div class="slider-val" id="pitchVal">0.80</div>
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">Speed</div>
+      <input type="range" id="rateSlider" min="0.5" max="2.5" step="0.05" value="1.5">
+      <div class="slider-val" id="rateVal">1.50</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- SETLIST タブ -->
+<div class="screen" id="screen-setlist">
+  <div class="section-title">ADD NEW SONG</div>
+
+  <div class="new-song-box">
+    <div class="input-row">
+      <input type="text" id="newTitle" placeholder="曲名">
+      <button class="add-btn" onclick="addSong()">ADD</button>
+    </div>
+    <textarea class="lyrics-ta" id="newLyrics" placeholder="歌詞をここにペーストするゆ&#10;&#10;夜が明けていく&#10;君の声がする&#10;..."></textarea>
+  </div>
+
+  <div class="section-title">SONGS</div>
+  <div class="song-list" id="songList">
+    <div class="empty-hint">まだ曲が登録されてないゆ🥺</div>
+  </div>
+</div>
+
+<!-- プロンプター（全画面オーバーレイ） -->
+<div id="prompter">
+  <div class="stage">
+    <div class="song-title-badge" id="songTitleBadge"></div>
+    <div class="counter">
+      <span class="cur" id="curNum">1</span>
+      <span id="totalNum"> / 1</span>
+    </div>
+    <div class="lines-container" id="linesContainer"></div>
+    <div class="tap-hint" id="tapHint">TAP TO START</div>
+
+  </div>
+  <div class="control-bar">
+    <div class="sub-btns">
+      <button class="sub-btn" onclick="prevLine()">◀ Back</button>
+      <button class="sub-btn" onclick="closePrompter()">Exit</button>
+    </div>
+    <button class="next-btn" id="nextBtn" onclick="nextLine()">NEXT ▶</button>
+    <div class="key-hint">画面タップ / space / remote</div>
+  </div>
+</div>
+
+<script>
+  // ===== STATE =====
+  let songs = JSON.parse(localStorage.getItem('lyricSongs') || '[]');
+  let lines = [];
+  let current = 0;
+  let speechPitch = 0.8;
+  let speechRate = 1.5;
+  const VISIBLE_PAST = 2;
+  const VISIBLE_FUTURE = 3;
+
+  // ===== TABS =====
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    if (tab === 'play') {
+      document.querySelectorAll('.tab')[0].classList.add('active');
+      document.getElementById('screen-play').classList.add('active');
+    } else {
+      document.querySelectorAll('.tab')[1].classList.add('active');
+      document.getElementById('screen-setlist').classList.add('active');
+    }
+  }
+
+  // ===== SONGS =====
+  function saveSongs() {
+    localStorage.setItem('lyricSongs', JSON.stringify(songs));
+  }
+
+  function addSong() {
+    const title = document.getElementById('newTitle').value.trim();
+    const lyrics = document.getElementById('newLyrics').value.trim();
+    if (!title || !lyrics) return;
+    songs.push({ id: Date.now(), title, lyrics });
+    saveSongs();
+    document.getElementById('newTitle').value = '';
+    document.getElementById('newLyrics').value = '';
+    renderSongList();
+    renderSongSelect();
+  }
+
+  function deleteSong(id) {
+    songs = songs.filter(s => s.id !== id);
+    saveSongs();
+    renderSongList();
+    renderSongSelect();
+  }
+
+  function renderSongList() {
+    const list = document.getElementById('songList');
+    if (songs.length === 0) {
+      list.innerHTML = '<div class="empty-hint">まだ曲が登録されてないゆ🥺</div>';
+      return;
+    }
+    list.innerHTML = songs.map((s, i) => {
+      const lineCount = s.lyrics.split('\n').filter(l => l.trim()).length;
+      return `
+        <div class="song-item" onclick="selectFromList(${s.id})">
+          <div class="song-num">${i + 1}</div>
+          <div class="song-name">${escHtml(s.title)}</div>
+          <div class="song-lines">${lineCount} lines</div>
+          <button class="del-btn" onclick="event.stopPropagation(); deleteSong(${s.id})">DEL</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderSongSelect() {
+    const sel = document.getElementById('songSelect');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— 曲を選ぶ —</option>' +
+      songs.map(s => `<option value="${s.id}">${escHtml(s.title)}</option>`).join('');
+    if (prev) sel.value = prev;
+    updateStartBtn();
+  }
+
+  function selectFromList(id) {
+    switchTab('play');
+    const sel = document.getElementById('songSelect');
+    sel.value = id;
+    const song = songs.find(s => s.id === id);
+    if (song) document.getElementById('pasteInput').value = song.lyrics;
+    updateStartBtn();
+  }
+
+  function updateStartBtn() {
+    const btn = document.getElementById('startBtn');
+    btn.disabled = !document.getElementById('pasteInput').value.trim();
+  }
+
+  document.getElementById('songSelect').addEventListener('change', function() {
+    const id = parseInt(this.value);
+    const song = songs.find(s => s.id === id);
+    const ta = document.getElementById('pasteInput');
+    if (song) {
+      ta.value = song.lyrics;
+    } else {
+      ta.value = '';
+    }
+    updateStartBtn();
+  });
+
+  document.getElementById('pasteInput').addEventListener('input', updateStartBtn);
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ===== SLIDERS =====
+  document.getElementById('pitchSlider').addEventListener('input', function() {
+    speechPitch = parseFloat(this.value);
+    document.getElementById('pitchVal').textContent = speechPitch.toFixed(2);
+    schedulePreview();
+  });
+
+  document.getElementById('rateSlider').addEventListener('input', function() {
+    speechRate = parseFloat(this.value);
+    document.getElementById('rateVal').textContent = speechRate.toFixed(2);
+    schedulePreview();
+  });
+
+  let previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => speakText('テスト'), 700);
+  }
+
+  // ===== PROMPTER =====
+  function startPrompter() {
+    const lyricsRaw = document.getElementById('pasteInput').value;
+    const selEl = document.getElementById('songSelect');
+    const id = parseInt(selEl.value);
+    const song = songs.find(s => s.id === id);
+    const songTitle = song ? song.title : 'PASTE';
+
+    lines = lyricsRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return;
+    current = 0;
+    document.getElementById('songTitleBadge').textContent = songTitle;
+    document.getElementById('totalNum').textContent = ' / ' + lines.length;
+    document.getElementById('prompter').style.display = 'flex';
+    document.getElementById('tabBar').style.display = 'none';
+    renderLines();
+  }
+
+  function closePrompter() {
+    window.speechSynthesis && window.speechSynthesis.cancel();
+    document.getElementById('prompter').style.display = 'none';
+    document.getElementById('tabBar').style.display = 'flex';
+  }
+
+  function renderLines() {
+    const container = document.getElementById('linesContainer');
+    container.innerHTML = '';
+    const start = Math.max(0, current - VISIBLE_PAST);
+    const end = Math.min(lines.length - 1, current + VISIBLE_FUTURE);
+    for (let i = start; i <= end; i++) {
+      const div = document.createElement('div');
+      div.className = 'lyric-line';
+      div.textContent = lines[i];
+      if (i < current)          div.classList.add('past');
+      else if (i === current)   div.classList.add('current');
+      else if (i === current+1) div.classList.add('next');
+      else                       div.classList.add('future');
+      container.appendChild(div);
+    }
+    document.getElementById('curNum').textContent = Math.min(current + 1, lines.length);
+    document.getElementById('tapHint').style.display = current === 0 ? 'block' : 'none';
+  }
+
+  function nextLine() {
+    speakText(lines[current]);
+    current = (current + 1) % lines.length;
+    renderLines();
+    const btn = document.getElementById('nextBtn');
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 130);
+  }
+
+  function prevLine() {
+    if (current <= 0) return;
+    current--;
+    renderLines();
+    window.speechSynthesis && window.speechSynthesis.cancel();
+  }
+
+  function speakText(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.pitch = speechPitch;
+    u.rate = speechRate;
+    window.speechSynthesis.speak(u);
+  }
+
+  function restartFromBeginning() { current = 0; renderLines(); }
+
+  // stage タップで次へ
+  document.querySelector('.stage').addEventListener('click', function(e) {
+    if (document.getElementById('prompter').style.display !== 'flex') return;
+    if (e.target.closest('.done-overlay')) return;
+    nextLine();
+  });
+
+  // ===== KEYS / REMOTE =====
+  document.addEventListener('keydown', (e) => {
+    if (document.getElementById('prompter').style.display !== 'flex') return;
+    if (['Space','Enter','ArrowRight','PageDown','ArrowDown'].includes(e.code)) {
+      e.preventDefault(); nextLine();
+    }
+    if (['ArrowLeft','PageUp','ArrowUp'].includes(e.code)) {
+      e.preventDefault(); prevLine();
+    }
+    if (e.code === 'Escape') closePrompter();
+  });
+
+  // ゲームパッド対応
+  let gpPolling = false, gpPrev = {};
+  window.addEventListener('gamepadconnected', () => {
+    if (!gpPolling) { gpPolling = true; pollGamepad(); }
+  });
+  function pollGamepad() {
+    const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const gp of gps) {
+      if (!gp) continue;
+      gp.buttons.forEach((btn, i) => {
+        const k = gp.index + '-' + i;
+        if (btn.pressed && !gpPrev[k] && document.getElementById('prompter').style.display === 'flex') nextLine();
+        gpPrev[k] = btn.pressed;
+      });
+    }
+    requestAnimationFrame(pollGamepad);
+  }
+
+  // ===== INIT =====
+  renderSongList();
+  renderSongSelect();
+</script>
+</body>
+</html>
