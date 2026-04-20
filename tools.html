@@ -99,7 +99,8 @@
             }
 
             if (user && repo) {
-                infoText.innerText = `ユーザー: ${user} / リポジトリ: ${repo} 🥺✨`;
+                // ユーザー名→github.com、リポジトリ名→github.com/user/repoへのリンクだゆ✨
+                infoText.innerHTML = `ユーザー: <a href="https://github.com/${user}" target="_blank" class="text-blue-500 underline font-bold">${user}</a> / リポジトリ: <a href="https://github.com/${user}/${repo}" target="_blank" class="text-blue-500 underline font-bold">${repo}</a> 🥺✨`;
                 fetchGitHubFiles(user, repo);
             } else {
                 infoText.innerText = `GitHub Pages上で動かしてだゆ！🥺`;
@@ -152,7 +153,6 @@
                 }
 
                 // 連番グループに分類するゆ
-                // まず全ファイルのstemセットを作る
                 const allStems = new Set(htmlFiles.map(f => f.name.replace(/\.html$/i, '')));
 
                 const groups = {};
@@ -164,11 +164,9 @@
                     const parsed = parseSerialName(file.name);
 
                     if (parsed && parsed.base !== '') {
-                        // 数字あり：そのままグループへ
                         if (!groups[parsed.base]) groups[parsed.base] = [];
                         groups[parsed.base].push({ name: file.name, num: parsed.num, url: pagesUrl });
                     } else {
-                        // 数字なし：stem+"数字" の兄弟が存在するかチェック
                         const hasNumberedSibling = [...allStems].some(s => {
                             const m = s.match(/^(.*?)(\d+)$/);
                             return m && m[1] === stem;
@@ -192,14 +190,12 @@
                     }
                 });
 
-                // 単体ファイルをレンダリング
                 singles.sort((a, b) => a.name.localeCompare(b.name)).forEach(f => {
                     linkContainer.appendChild(makeSingleCard(f.name, f.url));
                 });
 
-                // グループをレンダリング（数字が大きい順）
                 Object.entries(trueGroups).forEach(([base, items]) => {
-            items.sort((a, b) => b.num - a.num); // 大きい順、0（数字なし）は末尾
+                    items.sort((a, b) => b.num - a.num);
                     linkContainer.appendChild(makeGroupCard(base, items));
                 });
 
@@ -263,7 +259,6 @@
                 body.appendChild(row);
             });
 
-            // 開閉トグル（デフォルト閉じ）
             body.style.display = 'none';
             header.addEventListener('click', () => {
                 const chevron = header.querySelector('.chevron');
