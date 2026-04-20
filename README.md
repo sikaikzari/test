@@ -1,7 +1,10 @@
 # test
 
-SpliteStudio Ultimate
+#SpliteStudio Ultimate
 https://sikaikzari.github.io/test/spritestudio3.html
+
+#mindmap IMG
+https://sikaikzari.github.io/test/mindmap.html
 
 植物のやつの説明
 
