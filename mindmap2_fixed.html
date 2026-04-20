@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>MindMap Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none;
+            overflow: hidden;
+            background-color: #e5e7eb;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
+            margin: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10000; /* 通常はペイントが最前面だゆ */
+            background: transparent;
+        }
+        .image-node {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            -webkit-user-select: none;
+            /* z-indexはJS側で管理するゆ */
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            min-width: 50px;
+            min-height: 50px;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            /* [FIX1] heightをautoにして画像の縦横比に合わせるゆ */
+            width: 200px;
+            height: auto;
+        }
+        .image-node.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+        }
+        .image-node img {
+            pointer-events: none;
+            display: block;
+            border-radius: 12px;
+            /* [FIX1] widthは100%、heightはautoで縦横比を保つゆ */
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            -webkit-user-drag: none;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .controls {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20000;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            padding: 0.75rem;
+            border-radius: 1.25rem;
+            box-shadow: 0 -4px 15px -3px rgb(0 0 0 / 0.1);
+            width: 95%;
+            max-width: 850px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: env(safe-area-inset-bottom);
+        }
+        .btn {
+            padding: 0.6rem 0.9rem;
+            border-radius: 0.75rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.875rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-blue { background-color: #3b82f6; color: white; }
+        .btn-red { background-color: #ef4444; color: white; }
+        .btn-orange { background-color: #f97316; color: white; }
+        .btn-green { background-color: #10b981; color: white; }
+        .btn-gray { background-color: #6b7280; color: white; }
+        .btn-white { background-color: #ffffff; color: #374151; border: 1px solid #d1d5db; }
+        .active-mode { ring: 3px ring-offset-2 ring-blue-500; opacity: 1; transform: scale(1.05); }
+        .inactive-mode { opacity: 0.7; }
+        
+        .undo-redo-group {
+            display: flex;
+            gap: 0.25rem;
+            border-right: 1px solid #e5e7eb;
+            padding-right: 0.5rem;
+            margin-right: 0.25rem;
+        }
+
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            color: white;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+        <span>保存画像を作成中だゆ...🥺</span>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="paintCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="undo-redo-group">
+            <button id="undoBtn" class="btn btn-white" title="戻る (←)">
+                <span>⬅️</span>
+            </button>
+            <button id="redoBtn" class="btn btn-white" title="進む (→)">
+                <span>➡️</span>
+            </button>
+        </div>
+
+        <input type="file" id="imageInput" accept="image/*" class="hidden" multiple>
+        <button id="addImgBtn" class="btn btn-blue">
+            <span>📷</span> 追加
+        </button>
+        
+        <button id="drawModeBtn" class="btn btn-gray active-mode">
+            <span>✏️</span> ペイント
+        </button>
+        <button id="eraserModeBtn" class="btn btn-white inactive-mode">
+            <span>🧹</span> 消しゴム
+        </button>
+        <button id="moveModeBtn" class="btn btn-gray inactive-mode">
+            <span>🖐️</span> 移動
+        </button>
+        
+        <button id="clearLinesBtn" class="btn btn-orange">
+            <span>〰️</span> 線クリア
+        </button>
+        <button id="clearImagesBtn" class="btn btn-red">
+            <span>🖼️</span> 画像クリア
+        </button>
+        
+        <button id="saveBtn" class="btn btn-green">
+            <span>💾</span> 保存
+        </button>
+    </div>
+
+    <script>
+        const container = document.getElementById('canvas-container');
+        let canvas = document.getElementById('paintCanvas');
+        let ctx = canvas.getContext('2d');
+        const imageInput = document.getElementById('imageInput');
+        const addImgBtn = document.getElementById('addImgBtn');
+        const drawModeBtn = document.getElementById('drawModeBtn');
+        const eraserModeBtn = document.getElementById('eraserModeBtn');
+        const moveModeBtn = document.getElementById('moveModeBtn');
+        const clearLinesBtn = document.getElementById('clearLinesBtn');
+        const clearImagesBtn = document.getElementById('clearImagesBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        let isDrawing = false;
+        let mode = 'draw'; 
+        let lastX = 0;
+        let lastY = 0;
+        const strokeColor = '#2dd4bf'; 
+
+        let historyStack = [];
+        let historyIndex = -1;
+
+        // [FIX3] 画像レイヤー管理用のカウンターだゆ
+        let imageZCounter = 20;
+
+        // ペイントcanvasのz-index管理だゆ
+        // 通常はペイントが最前面（10000）、画像操作中は画像の下（10）
+        function bringCanvasToFront() {
+            canvas.style.zIndex = "10000";
+        }
+        function sendCanvasBehind() {
+            canvas.style.zIndex = "10";
+        }
+
+        function saveHistory() {
+            if (historyIndex < historyStack.length - 1) {
+                historyStack = historyStack.slice(0, historyIndex + 1);
+            }
+            historyStack.push(canvas.toDataURL());
+            historyIndex++;
+            if (historyStack.length > 30) {
+                historyStack.shift();
+                historyIndex--;
+            }
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                loadHistory();
+            } else if (historyIndex === 0) {
+                historyIndex = -1;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function redo() {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                loadHistory();
+            }
+        }
+
+        function loadHistory() {
+            const img = new Image();
+            img.src = historyStack[historyIndex];
+            img.onload = () => {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                setCtxStyle();
+            };
+        }
+
+        function setCtxStyle() {
+            if (mode === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = 50; 
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 4;
+            }
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        function initCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            setCtxStyle();
+            updateCanvasInteraction();
+        }
+
+        function resizeCanvas() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            setCtxStyle();
+            ctx.drawImage(tempCanvas, 0, 0);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        initCanvas();
+
+        const startDrawingHandler = (e) => {
+            if (mode === 'move') return;
+            isDrawing = true;
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            [lastX, lastY] = [clientX, clientY];
+        };
+
+        const drawHandler = (e) => {
+            if (!isDrawing || mode === 'move') return;
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(clientX, clientY);
+            ctx.stroke();
+            [lastX, lastY] = [clientX, clientY];
+        };
+
+        const stopDrawingHandler = () => { 
+            if (isDrawing) {
+                isDrawing = false;
+                saveHistory();
+            }
+        };
+
+        canvas.addEventListener('mousedown', startDrawingHandler);
+        window.addEventListener('mousemove', drawHandler);
+        window.addEventListener('mouseup', stopDrawingHandler);
+        
+        canvas.addEventListener('touchstart', (e) => {
+            if (mode !== 'move') {
+                startDrawingHandler(e);
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (mode !== 'move') {
+                drawHandler(e);
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', stopDrawingHandler);
+
+        container.addEventListener('touchstart', (e) => {
+            if (e.target === container || e.target === canvas) {
+                // 余白またはcanvas直タップ → ペイントを最前面に戻すゆ
+                bringCanvasToFront();
+                document.querySelectorAll('.image-node').forEach(n => n.classList.remove('active'));
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') undo();
+            else if (e.key === 'ArrowRight') redo();
+        });
+
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+
+        drawModeBtn.addEventListener('click', () => setMode('draw'));
+        eraserModeBtn.addEventListener('click', () => setMode('eraser'));
+        moveModeBtn.addEventListener('click', () => setMode('move'));
+
+        function updateCanvasInteraction() {
+            if (mode === 'move') {
+                canvas.style.pointerEvents = "none";
+                // 移動モードでは画像をタップできるようにcanvasを下に送るゆ
+                sendCanvasBehind();
+            } else {
+                canvas.style.pointerEvents = "auto";
+                bringCanvasToFront();
+            }
+        }
+
+        function setMode(newMode) {
+            mode = newMode;
+            [drawModeBtn, eraserModeBtn, moveModeBtn].forEach(btn => {
+                btn.classList.remove('active-mode');
+                btn.classList.add('inactive-mode');
+            });
+
+            if (mode === 'draw' || mode === 'eraser') {
+                const target = mode === 'draw' ? drawModeBtn : eraserModeBtn;
+                target.classList.replace('inactive-mode', 'active-mode');
+                // ペイント・消しゴムモードでは常に最前面だゆ
+                bringCanvasToFront();
+            } else if (mode === 'move') {
+                moveModeBtn.classList.replace('inactive-mode', 'active-mode');
+                // 移動モードに入ったらとりあえず下に送っておくゆ
+                sendCanvasBehind();
+            }
+            updateCanvasInteraction();
+            setCtxStyle();
+        }
+
+        addImgBtn.addEventListener('click', () => imageInput.click());
+
+        imageInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                setMode('move');
+            }
+            for (let file of files) {
+                const reader = new FileReader();
+                reader.onload = (event) => createImageNode(event.target.result);
+                reader.readAsDataURL(file);
+            }
+            imageInput.value = '';
+        });
+
+        function createImageNode(src) {
+            const div = document.createElement('div');
+            div.className = 'image-node';
+            div.style.left = '100px';
+            div.style.top = '100px';
+            // [FIX1] widthだけ設定してheightはCSSのautoに任せるゆ
+            div.style.width = '200px';
+            let rotation = 0;
+
+            // [FIX3] 追加時に最前面に来るようにするゆ
+            imageZCounter++;
+            div.style.zIndex = imageZCounter;
+
+            const img = document.createElement('img');
+            img.src = src;
+            div.appendChild(img);
+            
+            div.addEventListener('dblclick', () => {
+                if(confirm('この画像を削除するゆ？🥺')) div.remove();
+            });
+
+            let isDraggingNode = false;
+            let moveOffset = { x: 0, y: 0 };
+            let nodeInitialDistance = 0;
+            let nodeInitialWidth = 0;
+            let initialTouchAngle = 0;
+            let initialRotation = 0;
+            
+            // [FIX2] どのノードが操作中かを管理するゆ
+            let isThisNodeActive = false;
+            
+            const SNAP_THRESHOLD = 10; 
+
+            const onStart = (e) => {
+                if (mode === 'move') {
+                    // 画像を触ったらペイントを下に送るゆ
+                    sendCanvasBehind();
+                }
+                
+                if (mode !== 'move') return;
+
+                // [FIX2] このノードがアクティブになったことを記録するゆ
+                isThisNodeActive = true;
+                
+                div.classList.add('active');
+                // [FIX3] 触ったら最前面に来るゆ
+                imageZCounter++;
+                div.style.zIndex = imageZCounter;
+
+                if (e.touches && e.touches.length === 2) {
+                    isDraggingNode = false;
+                    nodeInitialDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    nodeInitialWidth = div.offsetWidth;
+                    initialTouchAngle = Math.atan2(
+                        e.touches[1].clientY - e.touches[0].clientY,
+                        e.touches[1].clientX - e.touches[0].clientX
+                    );
+                    initialRotation = rotation;
+                } else {
+                    isDraggingNode = true;
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    moveOffset.x = clientX - div.offsetLeft;
+                    moveOffset.y = clientY - div.offsetTop;
+                }
+            };
+
+            const onMove = (e) => {
+                if (mode !== 'move') return;
+                // [FIX2] このノードがアクティブなときだけ動くゆ！
+                if (!isThisNodeActive) return;
+
+                if (e.touches && e.touches.length === 2) {
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    if (nodeInitialDistance > 0) {
+                        const zoomFactor = currentDistance / nodeInitialDistance;
+                        const newWidth = nodeInitialWidth * zoomFactor;
+                        if (newWidth > 40) div.style.width = newWidth + 'px';
+                    }
+                    const currentAngle = Math.atan2(
+                        e.touches[1].clientY - e.touches[0].clientY,
+                        e.touches[1].clientX - e.touches[0].clientX
+                    );
+                    const angleDiffDeg = (currentAngle - initialTouchAngle) * 180 / Math.PI;
+                    let rawRotation = initialRotation + angleDiffDeg;
+                    let snappedRotation = rawRotation;
+                    const snapAngles = [0, 90, 180, 270, 360, -90, -180, -270];
+                    for (let target of snapAngles) {
+                        if (Math.abs(rawRotation - target) < SNAP_THRESHOLD) {
+                            snappedRotation = target;
+                            break;
+                        }
+                    }
+                    rotation = snappedRotation;
+                    div.style.transform = `rotate(${rotation}deg)`;
+                } else if (isDraggingNode) {
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+                    div.style.left = (clientX - moveOffset.x) + 'px';
+                    div.style.top = (clientY - moveOffset.y) + 'px';
+                }
+            };
+
+            const onEnd = () => {
+                isDraggingNode = false;
+                nodeInitialDistance = 0;
+                // [FIX2] アクティブ状態を解除するゆ
+                isThisNodeActive = false;
+                div.classList.remove('active');
+                // [FIX3] z-indexはそのまま保持するゆ（リセットしないゆ！）
+            };
+
+            div.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+            div.addEventListener('touchstart', (e) => {
+                onStart(e);
+                if (mode === 'move') e.preventDefault();
+            }, { passive: false });
+            window.addEventListener('touchmove', (e) => {
+                onMove(e);
+                if (mode === 'move') e.preventDefault();
+            }, { passive: false });
+            window.addEventListener('touchend', onEnd);
+
+            container.appendChild(div);
+        }
+
+        clearLinesBtn.addEventListener('click', () => {
+            if (confirm('描いた線を全部消すゆ？🥺')) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                saveHistory();
+            }
+        });
+
+        clearImagesBtn.addEventListener('click', () => {
+            if (confirm('貼った画像を全部消すゆ？🥺')) {
+                document.querySelectorAll('.image-node').forEach(n => n.remove());
+            }
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            loadingOverlay.style.display = 'flex';
+            
+            setTimeout(async () => {
+                try {
+                    const exportCanvas = document.createElement('canvas');
+                    exportCanvas.width = canvas.width;
+                    exportCanvas.height = canvas.height;
+                    const exCtx = exportCanvas.getContext('2d');
+                    
+                    exCtx.fillStyle = '#e5e7eb';
+                    exCtx.fillRect(0,0,exportCanvas.width, exportCanvas.height);
+                    
+                    // [FIX3] z-index順にソートして描くゆ！
+                    const nodes = Array.from(document.querySelectorAll('.image-node'));
+                    nodes.sort((a, b) => (parseInt(a.style.zIndex) || 0) - (parseInt(b.style.zIndex) || 0));
+
+                    for (let node of nodes) {
+                        const img = node.querySelector('img');
+                        const x = parseInt(node.style.left);
+                        const y = parseInt(node.style.top);
+                        const w = node.offsetWidth;
+                        const h = node.offsetHeight;
+                        const rotStr = node.style.transform;
+                        const match = rotStr.match(/rotate\((.+?)deg\)/);
+                        const angle = match ? parseFloat(match[1]) : 0;
+                        
+                        exCtx.save();
+                        exCtx.translate(x + w/2, y + h/2);
+                        exCtx.rotate(angle * Math.PI / 180);
+                        exCtx.drawImage(img, -w/2, -h/2, w, h);
+                        exCtx.restore();
+                    }
+
+                    exCtx.drawImage(canvas, 0, 0);
+
+                    const dataUrl = exportCanvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = `mindmap_${Date.now()}.png`;
+                    link.href = dataUrl;
+                    link.click();
+                } catch (err) {
+                    console.error(err);
+                    alert('保存に失敗しちゃったゆ...🥺 画像が多すぎるか、メモリ不足かもしれないだゆ。');
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>
