@@ -39,6 +39,9 @@
         }
 
         /* Pull to Refresh */
+        html, body {
+            overscroll-behavior-y: none;
+        }
         #ptr-indicator {
             position: fixed;
             top: 0;
@@ -47,45 +50,33 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
             height: 0;
             overflow: hidden;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 14px;
-            font-weight: bold;
             transition: height 0.2s ease;
             z-index: 9999;
             border-radius: 0 0 16px 16px;
         }
         #ptr-indicator.visible {
-            height: 56px;
-        }
-        #ptr-indicator.refreshing {
-            height: 56px;
+            height: 48px;
         }
         #ptr-spinner {
-            width: 20px;
-            height: 20px;
-            border: 2.5px solid rgba(255,255,255,0.4);
+            width: 22px;
+            height: 22px;
+            border: 2.5px solid rgba(255,255,255,0.35);
             border-top-color: white;
             border-radius: 50%;
-            display: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        #ptr-indicator.visible #ptr-spinner {
+            opacity: 1;
         }
         #ptr-spinner.spin {
-            display: block;
             animation: spin 0.7s linear infinite;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
-        }
-        #ptr-arrow {
-            font-size: 20px;
-            transition: transform 0.2s;
-            display: inline-block;
-        }
-        #ptr-arrow.flip {
-            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -93,9 +84,7 @@
 
     <!-- Pull to Refresh インジケーター -->
     <div id="ptr-indicator">
-        <span id="ptr-arrow">↓</span>
-        <span id="ptr-spinner"></span>
-        <span id="ptr-text">引っ張って更新だゆ🥺</span>
+        <div id="ptr-spinner"></div>
     </div>
 
     <div class="max-w-3xl mx-auto">
@@ -146,18 +135,20 @@
 
         // Pull to Refresh
         const ptrIndicator = document.getElementById('ptr-indicator');
-        const ptrText = document.getElementById('ptr-text');
-        const ptrArrow = document.getElementById('ptr-arrow');
         const ptrSpinner = document.getElementById('ptr-spinner');
 
         let touchStartY = 0;
-        let touchCurrentY = 0;
         let isPulling = false;
         let isRefreshing = false;
-        const THRESHOLD = 80; // 何px引っ張ったら発火するか
+        const THRESHOLD = 70;
+
+        // PWA standalone では body のスクロールが効かないので scrollable な要素を動的に特定するゆ
+        function getScrollTop() {
+            return document.documentElement.scrollTop || document.body.scrollTop || window.scrollY || 0;
+        }
 
         document.addEventListener('touchstart', (e) => {
-            if (window.scrollY === 0) {
+            if (getScrollTop() === 0 && !isRefreshing) {
                 touchStartY = e.touches[0].clientY;
                 isPulling = true;
             }
@@ -165,54 +156,29 @@
 
         document.addEventListener('touchmove', (e) => {
             if (!isPulling || isRefreshing) return;
-            touchCurrentY = e.touches[0].clientY;
-            const diff = touchCurrentY - touchStartY;
-            if (diff <= 0) return;
-
-            const progress = Math.min(diff / THRESHOLD, 1);
+            const diff = e.touches[0].clientY - touchStartY;
+            if (diff <= 0) { isPulling = false; return; }
             ptrIndicator.classList.add('visible');
-
-            if (diff >= THRESHOLD) {
-                ptrText.textContent = '離して更新だゆ🥹✨';
-                ptrArrow.classList.add('flip');
-            } else {
-                ptrText.textContent = '引っ張って更新だゆ🥺';
-                ptrArrow.classList.remove('flip');
-            }
         }, { passive: true });
 
-        document.addEventListener('touchend', async () => {
+        document.addEventListener('touchend', async (e) => {
             if (!isPulling || isRefreshing) return;
             isPulling = false;
+            const diff = e.changedTouches[0].clientY - touchStartY;
 
-            const diff = touchCurrentY - touchStartY;
             if (diff >= THRESHOLD) {
-                // 更新開始
                 isRefreshing = true;
-                ptrArrow.style.display = 'none';
                 ptrSpinner.classList.add('spin');
-                ptrText.textContent = '更新中だゆ...🥹';
-                ptrIndicator.classList.add('refreshing');
-
                 await doRefresh();
-
                 ptrSpinner.classList.remove('spin');
-                ptrArrow.style.display = 'inline-block';
-                ptrArrow.classList.remove('flip');
-                ptrText.textContent = '更新したゆ！🥺✨';
-
                 setTimeout(() => {
-                    ptrIndicator.classList.remove('visible', 'refreshing');
+                    ptrIndicator.classList.remove('visible');
                     isRefreshing = false;
-                    touchStartY = 0;
-                    touchCurrentY = 0;
-                }, 800);
+                }, 300);
             } else {
                 ptrIndicator.classList.remove('visible');
-                ptrArrow.classList.remove('flip');
-                touchStartY = 0;
-                touchCurrentY = 0;
             }
+            touchStartY = 0;
         });
 
         async function doRefresh() {
