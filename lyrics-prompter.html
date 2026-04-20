@@ -581,7 +581,43 @@
     transition: background 0.2s;
   }
 
-  .restart-btn:hover { background: rgba(232,255,71,0.1); }
+  .remote-key-display {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.1em;
+    padding: 8px 12px;
+    min-width: 0;
+  }
+
+  .remote-key-display.capturing {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    animation: blink 0.7s ease-in-out infinite alternate;
+  }
+
+  @keyframes blink { from { opacity: 1; } to { opacity: 0.4; } }
+
+  .remote-capture-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: border-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+  }
+
+  .remote-capture-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .remote-capture-btn.active { border-color: var(--accent2); color: var(--accent2); }
 </style>
 </head>
 <body>
@@ -615,8 +651,23 @@
 
   <div class="remote-hint">
     📱 <b>画面タップ</b> で次へ進むゆ🥺<br>
-    🎛 <b>Space / Enter / → / PageDown</b> — キーボード・Bluetoothリモコン対応<br>
-    <span style="font-size:10px; color:var(--muted);">プレゼン用リモコンやBTシャッターリモコンをSpaceキー割り当てで使えるゆ✨</span>
+    🎛 Bluetoothリモコンは下で設定できるゆ✨
+  </div>
+
+  <div class="sliders">
+    <div class="sliders-title">Remote Settings</div>
+    <div class="slider-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+      <div style="display:flex; align-items:center; gap:10px; width:100%;">
+        <div class="slider-label" style="width:64px;">NEXT</div>
+        <div class="remote-key-display" id="nextKeyDisplay">---</div>
+        <button class="remote-capture-btn" id="nextCaptureBtn" onclick="startCapture('next')">SET</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; width:100%;">
+        <div class="slider-label" style="width:64px;">REPLAY</div>
+        <div class="remote-key-display" id="replayKeyDisplay">---</div>
+        <button class="remote-capture-btn" id="replayCaptureBtn" onclick="startCapture('replay')">SET</button>
+      </div>
+    </div>
   </div>
 
   <div class="sliders">
@@ -905,14 +956,70 @@
     nextLine();
   });
 
+  // ===== REMOTE KEY CONFIG =====
+  let remoteNextKey = localStorage.getItem('remoteNextKey') || '';
+  let remoteReplayKey = localStorage.getItem('remoteReplayKey') || '';
+  let captureTarget = null;
+
+  function updateKeyDisplays() {
+    document.getElementById('nextKeyDisplay').textContent = remoteNextKey || '---';
+    document.getElementById('replayKeyDisplay').textContent = remoteReplayKey || '---';
+  }
+  updateKeyDisplays();
+
+  function startCapture(target) {
+    captureTarget = target;
+    const nextBtn = document.getElementById('nextCaptureBtn');
+    const replayBtn = document.getElementById('replayCaptureBtn');
+    const nextDisp = document.getElementById('nextKeyDisplay');
+    const replayDisp = document.getElementById('replayKeyDisplay');
+
+    nextBtn.classList.toggle('active', target === 'next');
+    replayBtn.classList.toggle('active', target === 'replay');
+    nextDisp.classList.toggle('capturing', target === 'next');
+    replayDisp.classList.toggle('capturing', target === 'replay');
+
+    if (target === 'next') nextDisp.textContent = '押してゆ🥺';
+    else replayDisp.textContent = '押してゆ🥺';
+  }
+
+  function replayCurrentLine() {
+    // currentは既に次に進んでいるのでcurrent-1、ただし0(START)はスキップ
+    const idx = current === 0 ? 0 : current;
+    if (lines[idx] && lines[idx] !== 'START') speakText(lines[idx]);
+  }
+
   // ===== KEYS / REMOTE =====
   document.addEventListener('keydown', (e) => {
+    // キャプチャ中
+    if (captureTarget) {
+      e.preventDefault();
+      const key = e.code;
+      if (captureTarget === 'next') {
+        remoteNextKey = key;
+        localStorage.setItem('remoteNextKey', key);
+      } else {
+        remoteReplayKey = key;
+        localStorage.setItem('remoteReplayKey', key);
+      }
+      captureTarget = null;
+      document.getElementById('nextCaptureBtn').classList.remove('active');
+      document.getElementById('replayCaptureBtn').classList.remove('active');
+      document.getElementById('nextKeyDisplay').classList.remove('capturing');
+      document.getElementById('replayKeyDisplay').classList.remove('capturing');
+      updateKeyDisplays();
+      return;
+    }
+
     if (document.getElementById('prompter').style.display !== 'flex') return;
+
+    // カスタムキー
+    if (remoteNextKey && e.code === remoteNextKey) { e.preventDefault(); nextLine(); return; }
+    if (remoteReplayKey && e.code === remoteReplayKey) { e.preventDefault(); replayCurrentLine(); return; }
+
+    // デフォルトキー
     if (['Space','Enter','ArrowRight','PageDown','ArrowDown'].includes(e.code)) {
       e.preventDefault(); nextLine();
-    }
-    if (['ArrowLeft','PageUp','ArrowUp'].includes(e.code)) {
-      e.preventDefault(); prevLine();
     }
     if (e.code === 'Escape') closePrompter();
   });
